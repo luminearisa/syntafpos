@@ -67,4 +67,7 @@ export const listQueryKeys = {
 
   // Phase 2 reports.
   reports: ['reports'] as const,
+
+  // Phase 3 sales and invoices.
+  sales: ['sales'] as const,
 };

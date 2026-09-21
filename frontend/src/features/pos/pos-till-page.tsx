@@ -8,7 +8,7 @@ import { useToast } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ErrorState, LoadingState } from '@/components/ui/state';
-import { Tooltip } from '@/components/ui/overlay';
+import { CheckoutDialog } from '@/features/sales/checkout-dialog';
 import { CartPanel } from './cart-panel';
 import { ProductGrid } from './product-grid';
 import { CustomerFooterButton, CustomerPickerModal } from './customer-picker-modal';
@@ -17,10 +17,10 @@ import { HoldDialog, RecallDialog } from './hold-recall';
 import { usePosCart } from './use-pos-cart';
 import { useAutoFocus, usePosShortcuts } from './use-pos-shortcuts';
 
-type Dialog = 'customer' | 'discount' | 'hold' | 'recall' | null;
+type Dialog = 'customer' | 'discount' | 'hold' | 'recall' | 'checkout' | null;
 
 /**
- * The till (Phase 3.1).
+ * The till (Phase 3.1, checkout in 3.2).
  *
  * Search box across the top, products on the left, the cart on the right, and a
  * footer that reads Customer | Discount | Tax | TOTAL | Checkout — the order a
@@ -30,10 +30,9 @@ type Dialog = 'customer' | 'discount' | 'hold' | 'recall' | null;
  * Nothing on this screen decides a price or a total. The server resolves prices
  * through the price engine for the customer on the cart, and every mutation
  * answers with the recomputed cart, which is what the footer and the cart panel
- * render. That is also why Checkout is still disabled: ringing up a sale means
- * payment, invoices and stock, all of which belong to Subphase 3.2, and a
- * partial version of that would be a worse guide to the next phase than an
- * honest gap.
+ * render. Checkout is the one place that leaves the till: it hands the cart id to
+ * POST /sales, and the sale, its invoice number, its payments and its stock out
+ * either all exist or none do.
  */
 export default function PosTillPage() {
   const can = useAuthStore((state) => state.can);
@@ -132,12 +131,11 @@ export default function PosTillPage() {
     dialog === null
   );
 
+  /** Opening the payment dialog is all the till does; CheckoutDialog posts the sale. */
   const checkout = () => {
-    toast({
-      variant: 'info',
-      title: 'Checkout is not open yet',
-      message: 'Payment, invoices and stock movement arrive with Subphase 3.2.',
-    });
+    if (mayWork && (cart?.items?.length ?? 0) > 0) {
+      setDialog('checkout');
+    }
   };
 
   if (!can('pos.view')) {
@@ -231,6 +229,12 @@ export default function PosTillPage() {
         onClose={closeDialog}
         busy={till.recall.isPending}
         onRecall={recall}
+      />
+
+      <CheckoutDialog
+        open={dialog === 'checkout'}
+        onClose={closeDialog}
+        cart={cart}
       />
     </div>
   );
@@ -376,22 +380,19 @@ function TillFooter({
         </>
       )}
 
-      {/* Subphase 3.2 owns payment and stock. A till that takes money without
-          those would be worse than a button that says not yet. */}
-      <Tooltip content="Payment, invoices and stock movement arrive with checkout (Subphase 3.2).">
-        <span>
-          <Button
-            variant="primary"
-            size="lg"
-            icon="checkmark-circle-outline"
-            onClick={onCheckout}
-            disabled={!mayWork || !ready}
-          >
-            Checkout
-            <kbd className="ml-1.5 hidden text-[10px] opacity-70 lg:inline">F10</kbd>
-          </Button>
-        </span>
-      </Tooltip>
+      {/* The one button on the till that writes outside the cart: it posts the
+          sale, its payments, its invoice number and its stock movement. */}
+      <Button
+        variant="primary"
+        size="lg"
+        icon="checkmark-circle-outline"
+        onClick={onCheckout}
+        disabled={!mayWork || !ready}
+        title="Take payment and issue the invoice (F10)"
+      >
+        Checkout
+        <kbd className="ml-1.5 hidden text-[10px] opacity-70 lg:inline">F10</kbd>
+      </Button>
     </footer>
   );
 }

@@ -34,9 +34,14 @@ import type {
   PurchaseOrder,
   PurchaseRequest,
   PurchaseReturn,
+  ReceiptWidth,
   Register,
   ReportRow,
+  CheckoutPayload,
   Role,
+  Sale,
+  SalePaymentInput,
+  SaleReceipt,
   SettingsResponse,
   StockAdjustment,
   StockCardRow,
@@ -830,4 +835,37 @@ export const posApi = {
 
   removeHeld: (cartId: number) =>
     request<null>({ method: 'DELETE', url: `/pos/cart/${cartId}` }),
+};
+
+/**
+ * Sales (Phase 3.2): the documents a till produces.
+ *
+ * There is no update and no delete, because the backend has none: a posted
+ * transaction is corrected by cancelling it, so the receipt, the stock movement
+ * and the takings keep telling the same story.
+ */
+export const saleApi = {
+  list: (params: ListParams = {}) =>
+    request<Sale[]>({ method: 'GET', url: '/sales', params }),
+
+  show: (id: number) => request<Sale>({ method: 'GET', url: `/sales/${id}` }),
+
+  /** Checkout: the cart becomes a numbered sale, stock leaves, tenders are recorded. */
+  checkout: (data: CheckoutPayload) =>
+    request<Sale>({ method: 'POST', url: '/sales', data }),
+
+  /** Take what is still owed; the sale posts its stock once the balance clears. */
+  complete: (id: number, payments: SalePaymentInput[] = []) =>
+    request<Sale>({ method: 'POST', url: `/sales/${id}/complete`, data: { payments } }),
+
+  cancel: (id: number, reason: string | null) =>
+    request<Sale>({ method: 'POST', url: `/sales/${id}/cancel`, data: { reason } }),
+
+  /** The printable document, rendered by the server for one paper width. */
+  receipt: (id: number, width: ReceiptWidth = '80') =>
+    request<SaleReceipt>({
+      method: 'GET',
+      url: `/sales/${id}/receipt`,
+      params: { width },
+    }),
 };

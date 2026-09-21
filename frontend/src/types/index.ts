@@ -220,6 +220,7 @@ export interface ListParams {
   brand_id?: number;
   supplier_id?: number;
   customer_id?: number;
+  register_id?: number;
   movement_type?: string;
   reference_type?: string;
   reference_id?: number;
@@ -1228,3 +1229,175 @@ export interface PosCartLineResponse {
   item: PosCartItem | null;
   cart: PosCart;
 }
+
+/* ------------------------- Phase 3.2: Sales & invoices ------------------------- */
+
+/**
+ * Where a sale has got to along Cart → Sales Order → Transaction → Payment →
+ * Completed. A ticket is only settled once, so `completed` and `cancelled` are
+ * the two states nothing else can follow.
+ */
+export type SaleStatus =
+  | 'draft'
+  | 'pending_payment'
+  | 'partially_paid'
+  | 'paid'
+  | 'completed'
+  | 'cancelled';
+
+/** How the customer handed over money. Only cash is tendered at a till. */
+export type PaymentMethod =
+  | 'cash'
+  | 'card'
+  | 'debit'
+  | 'credit'
+  | 'wallet'
+  | 'transfer'
+  | 'other';
+
+/** A tender's own state; `voided` is what a cancellation leaves behind. */
+export type SalePaymentStatus = 'pending' | 'completed' | 'voided';
+
+export type ReceiptWidth = '58' | '80' | 'a4';
+
+export interface SalePayment {
+  id: number;
+  sale_id: number;
+  number: string;
+  method: PaymentMethod;
+  method_label: string;
+  amount: string;
+  tendered: string;
+  change: string;
+  status: SalePaymentStatus;
+  /** The seam Subphase 3.8 fills with a gateway authorisation id. */
+  reference: string | null;
+  notes: string | null;
+  received_by: number | null;
+  created_at: string | null;
+}
+
+/**
+ * One invoice line — all snapshot, no joins.
+ *
+ * The name, SKU, price, tax and unit are the sale's own columns, so a receipt
+ * printed next year still reads as it did at the counter even after the product
+ * has been renamed, repriced or deleted.
+ */
+export interface SaleItem {
+  id: number;
+  sale_id: number;
+  product_id: number | null;
+  product_variant_id: number | null;
+  unit_id: number | null;
+  tax_id: number | null;
+
+  product_name: string;
+  product_sku: string;
+  barcode: string | null;
+  variant_name: string | null;
+  unit_code: string | null;
+
+  quantity: string;
+  unit_price: string;
+  price_source: PriceSource;
+  discount: string;
+  discount_type: DiscountType;
+  discount_amount: string;
+  tax_rate: string;
+  tax_mode: 'exclusive' | 'inclusive';
+  tax_amount: string;
+  line_subtotal: string;
+  line_total: string;
+  notes: string | null;
+}
+
+/** A sale is also the invoice: the header carries the whole document detail. */
+export interface Sale {
+  id: number;
+  company_id: number;
+  branch_id: number | null;
+  warehouse_id: number | null;
+  register_id: number | null;
+  customer_id: number | null;
+  cashier_id: number;
+  pos_cart_id: number | null;
+
+  number: string;
+  date: string;
+  status: SaleStatus;
+  status_label: string;
+  stock_posted_at: string | null;
+  completed_at: string | null;
+  cancelled_at: string | null;
+  cancel_reason: string | null;
+
+  currency: string;
+  subtotal: string;
+  item_discount_total: string;
+  discount_input: string;
+  discount_type: DiscountType;
+  discount_total: string;
+  tax_total: string;
+  tax_included_total: string;
+  other_charges: string;
+  rounding: string;
+  grand_total: string;
+
+  paid_total: string;
+  balance_due: string;
+  change_due: string;
+  /** Unpaid | Partially paid | Paid | Cancelled, derived server-side. */
+  payment_status: string;
+  fully_paid: boolean;
+
+  notes: string | null;
+
+  outlet: { name: string | null; address: string | null; phone: string | null };
+  customer: {
+    id: number | null;
+    name: string | null;
+    code: string | null;
+    phone: string | null;
+    email: string | null;
+    address: string | null;
+  };
+
+  item_count?: number;
+  total_quantity?: string;
+  /** Absent on list rows: the list counts lines without loading them. */
+  items?: SaleItem[];
+  payments: SalePayment[];
+
+  company?: { id: number; name: string; code: string; legal_name: string | null; currency: string } | null;
+  branch?: { id: number; name: string; code: string | null; address: string | null } | null;
+  warehouse?: { id: number; code: string; name: string } | null;
+  register?: { id: number; code: string; name: string } | null;
+  cashier?: { id: number | null; name: string | null } | null;
+
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+/** One tender as the till types it; `tendered` only means anything for cash. */
+export interface SalePaymentInput {
+  method: PaymentMethod;
+  amount: string;
+  tendered?: string;
+  notes?: string | null;
+}
+
+export interface CheckoutPayload {
+  cart_id: number;
+  date?: string;
+  notes?: string | null;
+  payments: SalePaymentInput[];
+}
+
+/** The printable document: the server's own HTML for one paper width. */
+export interface SaleReceipt {
+  width: ReceiptWidth;
+  sale: Sale;
+  html: string;
+}
+

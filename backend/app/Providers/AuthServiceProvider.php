@@ -23,6 +23,7 @@ use App\Models\PurchaseRequest;
 use App\Models\PurchaseReturn;
 use App\Models\Register;
 use App\Models\Role;
+use App\Models\Sale;
 use App\Models\StockAdjustment;
 use App\Models\StockOpname;
 use App\Models\Supplier;
@@ -53,6 +54,7 @@ use App\Policies\PurchaseRequestPolicy;
 use App\Policies\PurchaseReturnPolicy;
 use App\Policies\RegisterPolicy;
 use App\Policies\RolePolicy;
+use App\Policies\SalePolicy;
 use App\Policies\StockAdjustmentPolicy;
 use App\Policies\StockOpnamePolicy;
 use App\Policies\SupplierPolicy;
@@ -97,6 +99,7 @@ class AuthServiceProvider extends ServiceProvider
         GoodsReceipt::class => GoodsReceiptPolicy::class,
         PurchaseReturn::class => PurchaseReturnPolicy::class,
         PosCart::class => PosCartPolicy::class,
+        Sale::class => SalePolicy::class,
     ];
 
     public function boot(): void

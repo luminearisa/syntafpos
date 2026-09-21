@@ -160,6 +160,10 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         // and its held drafts.
         require __DIR__.'/pos.php';
 
+        // Phase 3.2 — the transactions that till produces: sales, payments and
+        // the invoices printed from them.
+        require __DIR__.'/sales.php';
+
         Route::prefix('settings')->group(function () {
             Route::get('/', [SettingsController::class, 'index'])->name('settings.index');
             Route::get('{key}', [SettingsController::class, 'show'])->name('settings.show');

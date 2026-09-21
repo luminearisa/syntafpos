@@ -19,7 +19,6 @@ use App\Models\StockMovement;
 use App\Models\Tax;
 use App\Models\Unit;
 use App\Models\User;
-use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 /**
@@ -641,9 +640,10 @@ class PosCartTest extends TestCase
 
     public function test_a_draft_writes_nothing_outside_the_cart_tables(): void
     {
-        // Checkout owns invoices, payments and journals; until Subphase 3.2
-        // ships there are no such tables at all, which is the point — a cart
-        // cannot write a document that does not exist yet.
+        // Subphase 3.2 added the documents a cart can become — sales, their
+        // lines and their tenders — so "no such tables" is no longer the proof.
+        // The invariant is the same and stronger: working a cart and parking one
+        // must leave every one of them empty.
         $cartId = $this->cartId();
         $this->addProduct($cartId, ['product_id' => $this->coffee->id]);
         $this->putJson("/api/v1/pos/cart/{$cartId}", ['other_charges' => '500'], $this->headers())->assertOk();
@@ -653,9 +653,9 @@ class PosCartTest extends TestCase
         $this->assertSame(1, PosCartItem::count());
         $this->assertDatabaseCount('stock_movements', 0);
         $this->assertDatabaseCount('stock_balances', 0);
-        foreach (['invoices', 'invoice_items', 'payments', 'journals', 'journal_entries'] as $absent) {
-            $this->assertFalse(Schema::hasTable($absent), "{$absent} should belong to a later subphase");
-        }
+        $this->assertDatabaseCount('sales', 0);
+        $this->assertDatabaseCount('sale_items', 0);
+        $this->assertDatabaseCount('sale_payments', 0);
     }
 
     //

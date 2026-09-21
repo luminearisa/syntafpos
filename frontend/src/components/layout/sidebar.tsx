@@ -30,16 +30,27 @@ function buildGroups(): NavGroup[] {
       items: [
         { label: 'Dashboard', to: '/dashboard', icon: 'speedometer-outline' },
         {
+          label: 'Inventory Overview',
+          to: '/inventory/overview',
+          icon: 'layers-outline',
+          permission: 'inventory.view',
+        },
+      ],
+    },
+    {
+      title: 'Sales',
+      items: [
+        {
           label: 'Point of Sale',
           to: '/pos',
           icon: 'calculator-outline',
           permission: 'pos.view',
         },
         {
-          label: 'Inventory Overview',
-          to: '/inventory/overview',
-          icon: 'layers-outline',
-          permission: 'inventory.view',
+          label: 'Sales & Invoices',
+          to: '/sales',
+          icon: 'receipt-outline',
+          permission: 'sales.view',
         },
       ],
     },

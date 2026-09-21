@@ -245,6 +245,46 @@ export const labelFor = {
 
     return labels[value] ?? value;
   },
+
+  /**
+   * Where a sale has got to. Kept apart from documentStatus on purpose: a sale
+   * is measured in money taken, not in approval steps, so "Paid" and "Partially
+   * Paid" have no equivalent on a purchase order.
+   */
+  saleStatus: (value: string | null | undefined): string => {
+    const labels: Record<string, string> = {
+      draft: 'Draft',
+      pending_payment: 'Pending Payment',
+      partially_paid: 'Partially Paid',
+      paid: 'Paid',
+      completed: 'Completed',
+      cancelled: 'Cancelled',
+    };
+
+    if (!value) {
+      return '-';
+    }
+
+    return labels[value] ?? value;
+  },
+
+  paymentMethod: (value: string | null | undefined): string => {
+    const labels: Record<string, string> = {
+      cash: 'Cash',
+      card: 'Card',
+      debit: 'Debit',
+      credit: 'Credit',
+      wallet: 'E-wallet',
+      transfer: 'Transfer',
+      other: 'Other',
+    };
+
+    if (!value) {
+      return '-';
+    }
+
+    return labels[value] ?? value;
+  },
 };
 
 /**

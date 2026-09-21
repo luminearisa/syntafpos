@@ -5,16 +5,22 @@ namespace App\Services;
 use App\Enums\DiscountType;
 use App\Enums\TaxType;
 use App\Models\PosCart;
+use App\Models\Sale;
 use App\Support\DecimalMath;
 use Illuminate\Support\Collection;
 
 /**
- * Fixed-point money engine for point-of-sale carts.
+ * Fixed-point money engine for point-of-sale tickets.
  *
  * Same contract as PurchaseCalculationService: every figure is derived with
  * bcmath through DecimalMath, and a client-sent total is never trusted. A
  * cashier's device computes a preview; the server recomputes the truth on
  * every write so checkout in Subphase 3.2 sees exactly what the till showed.
+ *
+ * A sale and a cart are the same shape of money — the same line fields, the same
+ * header discount and rounding rules — so the header maths is shared rather than
+ * copied: two implementations of a tax carve-out is how a receipt starts
+ * disagreeing with the invoice for the same transaction.
  *
  * Line model:
  *   gross        = quantity x unit_price
@@ -125,19 +131,37 @@ class PosCartCalculationService
     }
 
     /**
-     * Recompute the header money fields from the cart's persisted lines.
+     * Derive and store each line's money from the inputs the line itself holds.
      *
-     * @return array<string, string> the columns a cart should hold
+     * These four columns are written here and nowhere else, on a ticket and on a
+     * sale alike. A receipt prints a line's own total rather than recomputing it,
+     * so a sale that refreshed only its header would present correct grand totals
+     * above lines that all read zero — the invoice and the paper would disagree
+     * with each other while agreeing with nothing else.
      */
-    public function calculateTotals(PosCart $cart): array
+    public function applyLines(PosCart|Sale $ticket): void
+    {
+        $ticket->load('items');
+
+        foreach ($ticket->items as $item) {
+            $item->forceFill($this->calculateLines(collect([$item]))['lines'][0])->save();
+        }
+    }
+
+    /**
+     * Recompute the header money fields from the ticket's persisted lines.
+     *
+     * @return array<string, string> the columns a cart or sale should hold
+     */
+    public function calculateTotals(PosCart|Sale $ticket): array
     {
         // Reload so lines written moments earlier in the same request count.
-        $cart->load('items');
+        $ticket->load('items');
 
-        $computed = $this->calculateLines($cart->items);
+        $computed = $this->calculateLines($ticket->items);
 
-        $headerDiscount = $this->headerDiscount($cart, $computed);
-        $otherCharges = (string) ($cart->other_charges ?? '0');
+        $headerDiscount = $this->headerDiscount($ticket, $computed);
+        $otherCharges = (string) ($ticket->other_charges ?? '0');
 
         $exclusivePortion = DecimalMath::sub($computed['tax_total'], $computed['inclusive_tax_total']);
 
@@ -166,27 +190,27 @@ class PosCartCalculationService
     }
 
     /**
-     * Write the derived totals onto the cart and persist them.
+     * Write the derived totals onto the ticket and persist them.
      */
-    public function applyTotals(PosCart $cart): void
+    public function applyTotals(PosCart|Sale $ticket): void
     {
-        $cart->forceFill($this->calculateTotals($cart))->save();
+        $ticket->forceFill($this->calculateTotals($ticket))->save();
     }
 
     /**
      * Resolve the header discount as an absolute amount.
      *
-     * The cart holds the cashier's raw entry in discount_input plus the
+     * The ticket holds the cashier's raw entry in discount_input plus the
      * discount_type that says how to read it. Resolving it into discount_total
      * on every recompute is why the input is stored separately: a percent
      * entered once must not be re-applied to its own result on the next edit.
      *
      * @param  array{subtotal: string, item_discount_total: string}  $computed
      */
-    private function headerDiscount(PosCart $cart, array $computed): string
+    private function headerDiscount(PosCart|Sale $ticket, array $computed): string
     {
-        $discount = (string) ($cart->discount_input ?? '0');
-        $type = $cart->discount_type ?? DiscountType::Amount;
+        $discount = (string) ($ticket->discount_input ?? '0');
+        $type = $ticket->discount_type ?? DiscountType::Amount;
 
         $netOfLines = DecimalMath::sub($computed['subtotal'], $computed['item_discount_total']);
 

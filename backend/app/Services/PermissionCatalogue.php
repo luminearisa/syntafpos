@@ -50,6 +50,11 @@ final class PermissionCatalogue
 
             // Phase 3 — point of sale.
             'pos' => ['pos.view', 'pos.transact', 'pos.hold'],
+            // A sale is a posted financial record, so it is authorised apart
+            // from the draft cart that precedes it.
+            'sales' => [
+                'sales.view', 'sales.create', 'sales.complete', 'sales.cancel',
+            ],
         ];
     }
 
@@ -82,6 +87,7 @@ final class PermissionCatalogue
                 ->only([
                     'branches', 'warehouses', 'registers', 'users', 'roles',
                     'products', 'categories', 'brands', 'units', 'customers', 'suppliers',
+                    'sales',
                 ])
                 ->flatten()
                 ->push('settings.view')
@@ -98,6 +104,9 @@ final class PermissionCatalogue
                 'customers.view',
                 'customers.create',
                 'pos.view', 'pos.transact', 'pos.hold',
+                // A cashier raises and settles the ticket; taking one back is a
+                // supervisor's call, so sales.cancel is deliberately absent.
+                'sales.view', 'sales.create', 'sales.complete',
             ],
 
             'warehouse' => collect(self::groups())
@@ -111,7 +120,7 @@ final class PermissionCatalogue
                 ->all(),
 
             'finance' => collect(self::groups())
-                ->only(['suppliers', 'taxes'])
+                ->only(['suppliers', 'taxes', 'sales'])
                 ->flatten()
                 ->push('settings.view')
                 ->push('purchases.view', 'purchases.approve')
@@ -129,7 +138,7 @@ final class PermissionCatalogue
                 )->all())
                 ->flatten()
                 ->push('audit.view', 'settings.view')
-                ->push('inventory.view', 'purchases.view')
+                ->push('inventory.view', 'purchases.view', 'sales.view')
                 ->push('reports.inventory', 'reports.purchasing')
                 ->values()
                 ->all(),
@@ -187,6 +196,10 @@ final class PermissionCatalogue
             'purchases.receive' => 'Receive goods purchases',
             'purchases.update' => 'Update purchases',
             'purchases.view' => 'View purchases',
+            'sales.cancel' => 'Cancel sales',
+            'sales.complete' => 'Complete sales',
+            'sales.create' => 'Create sales',
+            'sales.view' => 'View sales',
             'registers.create' => 'Create registers',
             'registers.delete' => 'Delete registers',
             'registers.update' => 'Update registers',
