@@ -1,0 +1,423 @@
+import { useEffect, useState } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { brandApi, categoryApi, productApi } from '@/api/services';
+import type { Product, ProductType } from '@/types';
+import { useListQuery, useInvalidateList } from '@/hooks/use-list-query';
+import { listQueryKeys } from '@/lib/query-client';
+import { useAuthStore } from '@/stores/auth-store';
+import { useToast } from '@/components/ui/toast';
+import { DataTable, type Column } from '@/components/data-display/data-table';
+import { Button } from '@/components/ui/button';
+import { ConfirmModal, IconButton } from '@/components/ui/overlay';
+import { Badge } from '@/components/ui/badge';
+import { PageHeader } from '@/components/ui/state';
+import { Select } from '@/components/ui/input';
+import {
+  formatDecimal,
+  formatMoneyString,
+  labelFor,
+} from '@/utils/format';
+import { ProductFormDrawer } from './product-form-drawer';
+
+function apiErrorMessage(error: unknown, fallback: string): string {
+  if (error && typeof error === 'object' && 'isAxiosError' in error) {
+    const axiosError = error as {
+      response?: { data?: { message?: string; errors?: Record<string, string[]> } };
+    };
+
+    const errors = axiosError.response?.data?.errors;
+    if (errors) {
+      const first = Object.values(errors)[0];
+      if (first && first.length > 0) {
+        return first[0] ?? fallback;
+      }
+    }
+
+    if (axiosError.response?.data?.message) {
+      return axiosError.response.data.message;
+    }
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return fallback;
+}
+
+const productTypeOptions: { label: string; value: ProductType }[] = (
+  [
+    'simple',
+    'variable',
+    'service',
+    'bundle',
+    'raw_material',
+    'finished_good',
+    'consumable',
+  ] as const
+).map((value) => ({ value, label: labelFor.productType(value) }));
+
+const stockStatusVariant: Record<
+  string,
+  'success' | 'warning' | 'danger' | 'default'
+> = {
+  in_stock: 'success',
+  low_stock: 'warning',
+  out_of_stock: 'danger',
+  not_tracked: 'default',
+};
+
+const stockStatusIcon: Record<string, string> = {
+  in_stock: 'checkmark-circle',
+  low_stock: 'warning-outline',
+  out_of_stock: 'close-circle',
+  not_tracked: 'ellipse-outline',
+};
+
+export default function ProductsPage() {
+  const can = useAuthStore((state) => state.can);
+  const companyId = useAuthStore((state) => state.scope.companyId);
+  const { toast } = useToast();
+  const invalidate = useInvalidateList();
+
+  const list = useListQuery<Product>(
+    listQueryKeys.products,
+    (params) => productApi.list(params),
+    { company_id: companyId ?? undefined, sort: 'created_at', direction: 'desc' }
+  );
+
+  // Keep the list in sync when the active company changes in the topbar.
+  useEffect(() => {
+    list.onParamsChange({
+      company_id: companyId ?? undefined,
+      category_id: undefined,
+      brand_id: undefined,
+      type: undefined,
+      status: undefined,
+      page: 1,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyId]);
+
+  const { data: categoryTreeData } = useQuery({
+    queryKey: ['categories', 'filter-options', companyId],
+    queryFn: () =>
+      categoryApi.list({ company_id: companyId ?? undefined, per_page: 500 }),
+    enabled: companyId !== null,
+  });
+  const categoryOptions = (categoryTreeData?.data ?? []).map((category) => ({
+    label: category.name,
+    value: category.id,
+  }));
+
+  const { data: brandData } = useQuery({
+    queryKey: ['brands', 'filter-options', companyId],
+    queryFn: () =>
+      brandApi.list({ company_id: companyId ?? undefined, per_page: 200 }),
+    enabled: companyId !== null,
+  });
+  const brandOptions = (brandData?.data ?? []).map((brand) => ({
+    label: brand.name,
+    value: brand.id,
+  }));
+
+  const [formOpen, setFormOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<Product | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<Product | null>(null);
+
+  const removeMutation = useMutation({
+    mutationFn: (id: number) => productApi.remove(id),
+    onSuccess: () => {
+      toast({ title: 'Product deleted', variant: 'success' });
+      invalidate(listQueryKeys.products);
+      setRemoveTarget(null);
+    },
+    onError: (error) => {
+      toast({
+        title: 'Could not delete product',
+        message: apiErrorMessage(error, 'Failed to delete product'),
+        variant: 'error',
+      });
+      setRemoveTarget(null);
+    },
+  });
+
+  const openCreate = () => {
+    setEditTarget(null);
+    setFormOpen(true);
+  };
+
+  const openEdit = (product: Product) => {
+    setEditTarget(product);
+    setFormOpen(true);
+  };
+
+  const openRemove = (product: Product) => {
+    removeMutation.reset();
+    setRemoveTarget(product);
+  };
+
+  const columns: Column<Product>[] = [
+    {
+      key: 'sku',
+      header: 'SKU',
+      sortable: true,
+      width: '9rem',
+      render: (row) => <span className="font-mono text-xs">{row.sku}</span>,
+    },
+    {
+      key: 'barcode',
+      header: 'Barcode',
+      width: '9rem',
+      render: (row) => (
+        <span className="font-mono text-xs text-text-muted">
+          {row.barcode ?? '-'}
+        </span>
+      ),
+    },
+    {
+      key: 'name',
+      header: 'Product',
+      sortable: true,
+      render: (row) => (
+        <div className="flex flex-col">
+          <span className="font-medium text-text">{row.name}</span>
+          <span className="text-xs text-text-subtle">
+            {labelFor.productType(row.product_type)}
+            {row.default_unit ? ` · ${row.default_unit.code}` : ''}
+          </span>
+        </div>
+      ),
+    },
+    {
+      key: 'category_id',
+      header: 'Category',
+      render: (row) => (
+        <span className="text-text-muted">
+          {row.category?.name ?? <span className="text-text-subtle">-</span>}
+        </span>
+      ),
+    },
+    {
+      key: 'cost_price',
+      header: 'Cost',
+      sortable: true,
+      align: 'right',
+      render: (row) => (
+        <span className="font-mono text-sm text-text-muted">
+          {formatMoneyString(row.cost_price)}
+        </span>
+      ),
+    },
+    {
+      key: 'selling_price',
+      header: 'Price',
+      sortable: true,
+      align: 'right',
+      render: (row) => (
+        <span className="font-mono text-sm font-medium text-text">
+          {formatMoneyString(row.selling_price)}
+        </span>
+      ),
+    },
+    {
+      key: 'stock',
+      header: 'Stock',
+      align: 'right',
+      render: (row) => {
+        if (!row.track_inventory) {
+          return (
+            <span className="text-text-subtle">Not tracked</span>
+          );
+        }
+
+        return (
+          <div className="flex flex-col items-end">
+            <span className="font-mono text-sm text-text">
+              {formatDecimal(row.stock.on_hand)}
+            </span>
+            <span className="font-mono text-xs text-text-subtle">
+              avail {formatDecimal(row.stock.available)}
+            </span>
+          </div>
+        );
+      },
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (row) => {
+        if (!row.is_active) {
+          return (
+            <Badge variant="default" icon="ellipse-outline">
+              Inactive
+            </Badge>
+          );
+        }
+
+        const status = row.stock.status;
+        const variant = stockStatusVariant[status] ?? 'default';
+
+        return (
+          <Badge variant={variant} icon={stockStatusIcon[status] ?? 'ellipse-outline'}>
+            {labelFor.stockStatus(status)}
+          </Badge>
+        );
+      },
+    },
+    {
+      key: 'actions',
+      header: '',
+      align: 'right',
+      render: (row) => (
+        <div className="flex items-center justify-end gap-0.5">
+          {can('products.update') && (
+            <IconButton
+              icon="create-outline"
+              label={`Edit ${row.name}`}
+              onClick={() => openEdit(row)}
+            />
+          )}
+          {can('products.delete') && (
+            <IconButton
+              icon="trash-outline"
+              label={`Delete ${row.name}`}
+              className="hover:text-danger"
+              onClick={() => openRemove(row)}
+            />
+          )}
+        </div>
+      ),
+    },
+  ];
+
+  const canCreate = can('products.create');
+  const errorMessage = list.error
+    ? list.error.message || 'Failed to load products'
+    : null;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <PageHeader
+        title="Products"
+        description="The catalogue of goods and services you buy and sell."
+        actions={
+          canCreate ? (
+            <Button variant="primary" icon="add-outline" onClick={openCreate}>
+              New product
+            </Button>
+          ) : undefined
+        }
+      />
+
+      <div className="flex flex-wrap items-end gap-3">
+        <Select
+          label="Category"
+          name="category_filter"
+          options={categoryOptions}
+          placeholder="All categories"
+          value={list.params.category_id ?? ''}
+          onChange={(event) =>
+            list.onParamsChange({
+              category_id:
+                event.target.value === '' ? undefined : Number(event.target.value),
+              page: 1,
+            })
+          }
+          wrapperClassName="w-full max-w-xs"
+          disabled={companyId === null}
+        />
+        <Select
+          label="Brand"
+          name="brand_filter"
+          options={brandOptions}
+          placeholder="All brands"
+          value={list.params.brand_id ?? ''}
+          onChange={(event) =>
+            list.onParamsChange({
+              brand_id:
+                event.target.value === '' ? undefined : Number(event.target.value),
+              page: 1,
+            })
+          }
+          wrapperClassName="w-full max-w-xs"
+          disabled={companyId === null}
+        />
+        <Select
+          label="Type"
+          name="type_filter"
+          options={productTypeOptions}
+          placeholder="All types"
+          value={list.params.type ?? ''}
+          onChange={(event) =>
+            list.onParamsChange({
+              type: event.target.value === '' ? undefined : event.target.value,
+              page: 1,
+            })
+          }
+          wrapperClassName="w-full max-w-xs"
+        />
+        <Select
+          label="Status"
+          name="status_filter"
+          options={[
+            { label: 'Active', value: 'active' },
+            { label: 'Inactive', value: 'inactive' },
+          ]}
+          placeholder="All statuses"
+          value={list.params.status ?? ''}
+          onChange={(event) =>
+            list.onParamsChange({
+              status: event.target.value === '' ? undefined : event.target.value,
+              page: 1,
+            })
+          }
+          wrapperClassName="w-full max-w-xs"
+        />
+      </div>
+
+      <DataTable
+        columns={columns}
+        rows={list.rows}
+        rowKey={(row) => row.id}
+        loading={list.isLoading}
+        error={errorMessage}
+        onRetry={list.refetch}
+        pagination={list.pagination}
+        params={list.params}
+        onParamsChange={list.onParamsChange}
+        searchPlaceholder="Search products by name, SKU or barcode..."
+        emptyTitle="No products yet"
+        emptyDescription="Add a product to start buying, selling and tracking stock."
+        emptyAction={
+          canCreate
+            ? { label: 'New product', onClick: openCreate, icon: 'add-outline' }
+            : undefined
+        }
+      />
+
+      <ProductFormDrawer
+        open={formOpen}
+        onClose={() => setFormOpen(false)}
+        initial={editTarget}
+      />
+
+      <ConfirmModal
+        open={removeTarget !== null}
+        onClose={() => setRemoveTarget(null)}
+        onConfirm={() => removeTarget && removeMutation.mutate(removeTarget.id)}
+        title="Delete product"
+        message={
+          <>
+            Are you sure you want to delete{' '}
+            <strong className="text-text">{removeTarget?.name}</strong>? Its stock
+            history is retained but the product stops being buyable and sellable.
+          </>
+        }
+        confirmLabel="Delete product"
+        variant="danger"
+        loading={removeMutation.isPending}
+      />
+    </div>
+  );
+}
