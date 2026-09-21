@@ -255,10 +255,17 @@ class PosSaleTest extends TestCase
 
     /**
      * The message the last response carried for an error key, or an empty string.
+     *
+     * The payment engine keys its refusals to the field the till should highlight,
+     * which for a tender inside a list is a dotted name — `payments.amount`. Laravel
+     * returns those as literal keys, and `json()` would read the dots as a path, so
+     * the map is searched by name first and only falls back to the path lookup.
      */
     protected function errorMessage(string $key): string
     {
-        return implode(' | ', (array) $this->last?->json("errors.{$key}"));
+        $errors = (array) $this->last?->json('errors');
+
+        return implode(' | ', (array) ($errors[$key] ?? $this->last?->json("errors.{$key}")));
     }
 
     /**
@@ -278,7 +285,7 @@ class PosSaleTest extends TestCase
      */
     protected function exact(array $cart): array
     {
-        return [['method' => 'cash', 'amount' => $cart['grand_total'], 'tendered' => $cart['grand_total']]];
+        return [['channel' => 'cash', 'amount' => $cart['grand_total'], 'tendered' => $cart['grand_total']]];
     }
 
     //
@@ -364,15 +371,18 @@ class PosSaleTest extends TestCase
         $half = bcdiv($total, '2', 4);
 
         $sale = $this->checkout($cart['id'], [
-            ['method' => 'cash', 'amount' => $half, 'tendered' => $total],
-            ['method' => 'credit', 'amount' => bcsub($total, $half, 4)],
+            ['channel' => 'cash', 'amount' => $half, 'tendered' => $total],
+            ['channel' => 'credit_card', 'amount' => bcsub($total, $half, 4)],
         ])->assertCreated()->json('data');
 
         $this->assertSame(SaleStatus::Completed->value, $sale['status']);
         $this->assertSame($total, $sale['paid_total']);
         $this->assertCount(2, $sale['payments']);
-        $this->assertSame('cash', $sale['payments'][0]['method']);
-        $this->assertSame('credit', $sale['payments'][1]['method']);
+        $this->assertSame('cash', $sale['payments'][0]['channel']);
+        $this->assertSame('credit_card', $sale['payments'][1]['channel']);
+        // The payment names the shop's method rather than only its channel, so a
+        // receipt printed years later still says what the customer was told.
+        $this->assertSame('Cash', $sale['payments'][0]['method_name']);
         // Only cash is tendered, so only cash produces change.
         $this->assertSame(bcsub($total, $half, 4), $sale['payments'][0]['change']);
         $this->assertSame('0.0000', $sale['payments'][1]['change']);
@@ -384,13 +394,13 @@ class PosSaleTest extends TestCase
         $this->stock($this->coffee, '50.000000');
         $cart = $this->addToCart($this->cartId(), ['product_id' => $this->coffee->id]);
 
-        $this->checkout($cart['id'], [['method' => 'cash', 'amount' => '999999.0000']])
+        $this->checkout($cart['id'], [['channel' => 'cash', 'amount' => '999999.0000']])
             ->assertStatus(422);
 
         // Named by the key the till highlights, and with the figure the customer
         // still owes written the way the printed receipt writes it — currency
         // sign, minor units, local grouping — not the raw ledger string.
-        $this->assertStringContainsString('remaining balance of Rp 27.750.', $this->errorMessage('payments'));
+        $this->assertStringContainsString('remaining balance of Rp 27.750.', $this->errorMessage('payments.amount'));
 
         $this->assertSame(0, Sale::count());
         $this->assertSame(0, StockMovement::count());
@@ -545,7 +555,7 @@ class PosSaleTest extends TestCase
         $cart = $this->addToCart($this->cartId(), ['product_id' => $this->coffee->id]);
 
         // A short tender: the ticket is recorded, the goods stay on the shelf.
-        $sale = $this->checkout($cart['id'], [['method' => 'cash', 'amount' => '1000.0000']])
+        $sale = $this->checkout($cart['id'], [['channel' => 'cash', 'amount' => '1000.0000']])
             ->assertCreated()
             ->json('data');
 
@@ -557,7 +567,7 @@ class PosSaleTest extends TestCase
         // The balance arriving is what moves the goods.
         $saleId = $sale['id'];
         $this->postJson("/api/v1/sales/{$saleId}/complete", [
-            'payments' => [['method' => 'cash', 'amount' => bcsub($sale['grand_total'], '1000.0000', 4)]],
+            'payments' => [['channel' => 'cash', 'amount' => bcsub($sale['grand_total'], '1000.0000', 4)]],
         ], $this->headers())->assertOk()->assertJsonPath('data.status', SaleStatus::Completed->value);
 
         $this->assertSame('9.000000', $balance->fresh()->on_hand);
@@ -805,9 +815,9 @@ class PosSaleTest extends TestCase
         // later subphase, and the trail of what was taken stays on the record.
         $this->assertSame('0.0000', $cancelled['paid_total']);
         $this->assertSame($cancelled['grand_total'], $cancelled['balance_due']);
-        $this->assertSame('voided', $cancelled['payments'][0]['status']);
+        $this->assertSame('cancelled', $cancelled['payments'][0]['status']);
         $payment = SalePayment::sole();
-        $this->assertSame('voided', $payment->status->value);
+        $this->assertSame('cancelled', $payment->status->value);
         $this->assertSame(SaleStatus::Cancelled->value, Sale::find($sale['id'])->status->value);
     }
 
@@ -842,7 +852,7 @@ class PosSaleTest extends TestCase
     {
         $balance = $this->stock($this->coffee, '10.000000');
         $cart = $this->addToCart($this->cartId(), ['product_id' => $this->coffee->id]);
-        $sale = $this->checkout($cart['id'], [['method' => 'cash', 'amount' => '1000.0000']])->assertCreated()->json('data');
+        $sale = $this->checkout($cart['id'], [['channel' => 'cash', 'amount' => '1000.0000']])->assertCreated()->json('data');
 
         $this->postJson("/api/v1/sales/{$sale['id']}/cancel", [], $this->headers())->assertOk();
 
@@ -1098,7 +1108,7 @@ class PosSaleTest extends TestCase
         // The tender summary without the drawer's detail: enough to reconcile a
         // shift from the list, not the whole payment trail.
         $this->assertCount(1, $row['payments']);
-        $this->assertSame('cash', $row['payments'][0]['method']);
+        $this->assertSame('cash', $row['payments'][0]['channel']);
         // The lines themselves belong to the document, not the list.
         $this->assertArrayNotHasKey('items', $row);
         // The customer is a snapshot column on the sale, so no join is needed.

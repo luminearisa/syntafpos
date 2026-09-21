@@ -70,4 +70,7 @@ export const listQueryKeys = {
 
   // Phase 3 sales and invoices.
   sales: ['sales'] as const,
+
+  // Phase 3.3 payments: the admin list and the till's copy of it.
+  paymentMethods: ['payment-methods'] as const,
 };

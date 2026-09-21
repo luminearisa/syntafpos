@@ -2,7 +2,7 @@
 
 namespace App\Http\Requests\Pos;
 
-use App\Enums\PaymentMethod;
+use App\Enums\PaymentChannel;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Enum;
@@ -31,16 +31,30 @@ class CheckoutSaleRequest extends FormRequest
      * The tender block, shared with the completion endpoint: one place decides
      * what a payment may look like.
      *
+     * Shape only — a channel is one of nine, an amount is a positive fixed-point
+     * figure, a reference is a string. Every rule about whether such a tender is
+     * *allowed* here lives in PaymentService, next to the balance it is checked
+     * against and the lock that makes that check mean something, because a form
+     * request cannot see the sale.
+     *
      * @return array<string, list<string|Enum>>
      */
     public static function paymentRules(): array
     {
         return [
             'payments' => ['nullable', 'array', 'max:10'],
-            'payments.*.method' => ['nullable', Rule::enum(PaymentMethod::class)],
+            // The channel a till sends when it has not loaded the shop's
+            // configured methods; payment_method_id names a configured row and
+            // wins when both are sent. Either way PaymentService decides what the
+            // tender means, so a client can pay by whichever it has to hand.
+            'payments.*.channel' => ['nullable', Rule::enum(PaymentChannel::class)],
+            'payments.*.payment_method_id' => ['nullable', 'integer'],
             'payments.*.amount' => ['required', 'numeric', 'min:0.0001', 'decimal:0,4'],
             'payments.*.tendered' => ['nullable', 'numeric', 'min:0', 'decimal:0,4'],
+            'payments.*.reference' => ['nullable', 'string', 'max:128'],
             'payments.*.notes' => ['nullable', 'string', 'max:500'],
+            'payments.*.metadata' => ['nullable', 'array'],
+            'payments.*.metadata.*' => ['nullable'],
         ];
     }
 
@@ -62,6 +76,7 @@ class CheckoutSaleRequest extends FormRequest
         return [
             'payments.*.amount.required' => 'Every payment needs an amount.',
             'payments.*.amount.decimal' => 'Payment amounts take at most four decimals.',
+            'payments.*.channel.Enum' => 'That is not a payment method this till knows.',
         ];
     }
 }

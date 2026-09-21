@@ -79,7 +79,7 @@ class SaleController extends Controller
             // which only the document itself needs. Register and cashier are here
             // because a shift is reconciled per till and per person.
             ->with([
-                'payments:id,sale_id,number,method,amount,tendered,change,status,created_at',
+                'payments:id,sale_id,number,channel,method_name,amount,tendered,change,refunded_amount,currency,status,reference,paid_at,created_at',
                 'register:id,code,name',
                 'cashier:id,name',
             ])

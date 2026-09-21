@@ -10,11 +10,17 @@ import { Button } from '@/components/ui/button';
 import { listQueryKeys } from '@/lib/query-client';
 import { moneyUnits } from './money-math';
 import {
-  nextTenderKey,
+  defaultTenderMethod,
+  newTender,
   paymentsPayload,
   summarise,
+  applyTenderPatch,
+  tenderProblems,
+  withDefaultMethods,
+  availableMethods,
   type TenderLine,
 } from './tender-model';
+import { useAvailablePaymentMethods } from '@/features/payments/use-payment-methods';
 import { TenderRow } from './tenders';
 
 /**
@@ -53,15 +59,19 @@ function SettleForm({ sale, onClose }: { sale: Sale; onClose: () => void }) {
   const client = useQueryClient();
   const { toast } = useToast();
   const owed = sale.balance_due;
+  const methods = useAvailablePaymentMethods();
+  const methodList = availableMethods(methods.data?.data);
 
-  const [tenders, setTenders] = useState<TenderLine[]>(() => [
-    { key: nextTenderKey(), method: 'cash', amount: owed, tendered: '' },
-  ]);
+  // Opens on the balance, because that is the figure being chased here; the method
+  // is the shop's default once the list has arrived.
+  const [tenders, setTenders] = useState<TenderLine[]>(() => [newTender(null, owed)]);
 
-  const summary = useMemo(() => summarise(owed, tenders), [owed, tenders]);
+  const rows = useMemo(() => withDefaultMethods(tenders, methodList), [tenders, methodList]);
+  const summary = useMemo(() => summarise(owed, rows), [owed, rows]);
+  const problems = tenderProblems(rows);
 
   const settle = useMutation({
-    mutationFn: () => saleApi.complete(sale.id, paymentsPayload(tenders)),
+    mutationFn: () => saleApi.complete(sale.id, paymentsPayload(rows)),
     onSuccess: (response) => {
       const settled = response.data.fully_paid;
 
@@ -91,14 +101,14 @@ function SettleForm({ sale, onClose }: { sale: Sale; onClose: () => void }) {
 
   const patch = (key: string, change: Partial<TenderLine>) => {
     setTenders((current) =>
-      current.map((tender) => (tender.key === key ? { ...tender, ...change } : tender))
+      current.map((tender) => (tender.key === key ? applyTenderPatch(tender, change) : tender))
     );
   };
 
   const addRow = () => {
     setTenders((current) => [
       ...current,
-      { key: nextTenderKey(), method: 'transfer', amount: summary.balance, tendered: '' },
+      newTender(current[0]?.method ?? defaultTenderMethod(methodList), summary.balance),
     ]);
   };
 
@@ -112,11 +122,13 @@ function SettleForm({ sale, onClose }: { sale: Sale; onClose: () => void }) {
       footer={
         <div className="flex w-full flex-wrap items-center gap-2">
           <span className="text-xs text-text-muted">
-            {summary.over
-              ? 'More than the balance.'
-              : summary.settled
-                ? 'Settled — completing this posts the stock too.'
-                : `${formatMoneyString(summary.balance)} still owed`}
+            {problems.length > 0
+              ? problems[0]
+              : summary.over
+                ? 'More than the balance.'
+                : summary.settled
+                  ? 'Settled — completing this posts the stock too.'
+                  : `${formatMoneyString(summary.balance)} still owed`}
           </span>
           <div className="ml-auto flex gap-2">
             <Button variant="secondary" size="sm" onClick={onClose} disabled={settle.isPending}>
@@ -127,7 +139,7 @@ function SettleForm({ sale, onClose }: { sale: Sale; onClose: () => void }) {
               size="sm"
               icon="cash-outline"
               loading={settle.isPending}
-              disabled={summary.empty || summary.over}
+              disabled={summary.empty || summary.over || problems.length > 0}
               onClick={() => settle.mutate()}
             >
               Record payment
@@ -137,10 +149,11 @@ function SettleForm({ sale, onClose }: { sale: Sale; onClose: () => void }) {
       }
     >
       <div className="flex flex-col gap-2">
-        {tenders.map((tender) => (
+        {rows.map((tender) => (
           <TenderRow
             key={tender.key}
             tender={tender}
+            methods={methodList}
             balance={summary.balance}
             onChange={(change) => patch(tender.key, change)}
             onRemove={() =>

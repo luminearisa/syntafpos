@@ -4,19 +4,17 @@ namespace App\Services;
 
 use App\Enums\DiscountType;
 use App\Enums\MovementType;
-use App\Enums\PaymentMethod;
+use App\Enums\PaymentChannel;
 use App\Enums\PaymentStatus;
 use App\Enums\SaleStatus;
 use App\Models\PosCart;
 use App\Models\Sale;
 use App\Models\SaleItem;
-use App\Models\SalePayment;
 use App\Models\StockMovement;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Support\BusinessContext;
 use App\Support\DecimalMath;
-use App\Support\MoneyFormat;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
@@ -57,6 +55,7 @@ class SaleService
         private PosCartCalculationService $calculation,
         private InventoryService $inventory,
         private NumberingService $numbering,
+        private PaymentService $payments,
         private SettingsService $settings,
         private AuditService $audit,
     ) {}
@@ -85,8 +84,9 @@ class SaleService
             $sale = $this->raiseFromCart($cart, $user, $input, $warehouse);
 
             // Take the money first: a tender refused by validation aborts here,
-            // before a single balance row is touched.
-            $this->applyPayments($sale, $user, $payments);
+            // before a single balance row is touched. The engine returns the row
+            // as it now stands, because it has summed the tenders onto it.
+            $sale = $this->applyPayments($sale, $user, $payments);
 
             if ($this->settled($sale)) {
                 $this->postStock($sale, $user);
@@ -148,7 +148,7 @@ class SaleService
         return DB::transaction(function () use ($sale, $user, $payments) {
             $sale = Sale::query()->whereKey($sale->id)->lockForUpdate()->firstOrFail();
 
-            $this->applyPayments($sale, $user, $payments);
+            $sale = $this->applyPayments($sale, $user, $payments);
 
             if (! $this->settled($sale)) {
                 // Still short. Recorded, but nothing leaves the shelf.
@@ -242,23 +242,32 @@ class SaleService
                 );
             }
 
+            // Every live tender is withdrawn through the engine, which knows what
+            // a reversal does to the sale's money. The rows stay: a payment is
+            // never deleted, only told to have stopped meaning anything. `$withSale`
+            // is what lets a settled tender be taken back — the only case where the
+            // shop giving its money up is a sale being withdrawn rather than a
+            // refund nobody has recorded.
             foreach ($sale->payments as $payment) {
-                if ($payment->status === PaymentStatus::Completed) {
-                    $payment->forceFill(['status' => PaymentStatus::Voided])->save();
+                if ($payment->status === PaymentStatus::Pending || $payment->status->countsTowardPaid()) {
+                    $this->payments->cancel(
+                        $payment,
+                        $user,
+                        "Cancellation of sale {$sale->number}",
+                        withSale: true
+                    );
                 }
             }
 
-            // paid_total always equals the sum of the completed tenders on the
-            // record, so voiding them takes it back to zero. The money itself is
-            // handed across the counter by the cancellation flow, not by this
-            // column: refunds are a later subphase, as the work order states.
-            $sale->forceFill([
+            // paid_total is re-derived from the rows by the last cancel(), which is
+            // what takes it back to zero. The money itself is handed across the
+            // counter by the cancellation flow, not by this column: refunds are a
+            // later subphase, as the work order states.
+            $sale->refresh()->forceFill([
                 'status' => SaleStatus::Cancelled,
                 'cancelled_at' => now(),
                 'cancelled_by' => $user->id,
                 'cancel_reason' => $reason,
-                'paid_total' => '0',
-                'change_due' => '0',
             ])->save();
 
             $this->audit->record('sale.cancel', 'sale', $sale->id, $before, [
@@ -485,73 +494,28 @@ class SaleService
     }
 
     /**
-     * Record tenders against the sale and roll paid_total forward.
+     * Record tenders against the sale, through the payment engine.
      *
-     * A tender may never exceed the balance still owed, so over-collecting is
-     * not reachable through this path; only cash is tendered, so only cash can
-     * produce change.
+     * Phase 3.2 did this inline; 3.3 moved every rule about what a tender may be
+     * into PaymentService, so the sale engine no longer decides what money is
+     * allowed, only that the money it was handed gets taken. The returned sale is
+     * the row as the engine left it — its `paid_total`, `change_due` and payment
+     * status are the engine's, and the caller must not read the figures off the
+     * instance it passed in, which a locked transaction has since replaced.
      *
-     * @param  list<array{method: PaymentMethod, amount: string, tendered: string, notes: string|null}>  $payments
+     * @param  list<array<string, mixed>>  $payments
      */
-    private function applyPayments(Sale $sale, User $user, array $payments): void
+    private function applyPayments(Sale $sale, User $user, array $payments): Sale
     {
         if ($payments === []) {
-            return;
+            return $sale;
         }
-
-        $currency = (string) $this->settings->get('company.currency', $sale->currency ?: 'IDR', $sale->company_id);
 
         foreach ($payments as $payment) {
-            $amount = $payment['amount'];
-
-            if (bccomp($amount, '0', 4) <= 0) {
-                throw ValidationException::withMessages([
-                    'payments' => 'A payment must be more than zero.',
-                ]);
-            }
-
-            $balance = DecimalMath::sub((string) $sale->grand_total, (string) $sale->paid_total);
-
-            if (bccomp($amount, $balance, 4) > 0) {
-                throw ValidationException::withMessages([
-                    'payments' => sprintf(
-                        'That payment is larger than the remaining balance of %s.',
-                        MoneyFormat::format($balance, $currency)
-                    ),
-                ]);
-            }
-
-            $tendered = $payment['method']->takesTender() && bccomp($payment['tendered'], '0', 4) > 0
-                ? $payment['tendered']
-                : $amount;
-
-            if (bccomp($tendered, $amount, 4) < 0) {
-                throw ValidationException::withMessages([
-                    'payments' => 'The cash handed over is less than the amount being paid.',
-                ]);
-            }
-
-            $change = DecimalMath::sub($tendered, $amount);
-
-            SalePayment::create([
-                'sale_id' => $sale->id,
-                'company_id' => $sale->company_id,
-                'register_id' => $sale->register_id,
-                'received_by' => $user->id,
-                'number' => $this->numbering->next('payment', $sale->company_id),
-                'method' => $payment['method'],
-                'amount' => $amount,
-                'tendered' => $tendered,
-                'change' => $change,
-                'notes' => $payment['notes'],
-                'status' => PaymentStatus::Completed,
-            ]);
-
-            $sale->forceFill([
-                'paid_total' => DecimalMath::add((string) $sale->paid_total, $amount),
-                'change_due' => DecimalMath::add((string) $sale->change_due, $change),
-            ])->save();
+            $this->payments->takeByChannel($sale, $user, $payment);
         }
+
+        return $sale->fresh();
     }
 
     /**
@@ -577,9 +541,14 @@ class SaleService
     }
 
     /**
-     * Validate and shape the payment payload.
+     * Validate and shape the payment payload into what PaymentService takes.
      *
-     * @return list<array{method: PaymentMethod, amount: string, tendered: string, notes: string|null}>
+     * The till sends `channel` with its tenders, and a client that knows the
+     * shop's configuration may send `payment_method_id` instead — the engine
+     * resolves which configured method either one means, so this only lifts the
+     * figures it was asked for and drops the rest.
+     *
+     * @return list<array<string, mixed>>
      */
     private function normalisePayments(mixed $input): array
     {
@@ -592,44 +561,29 @@ class SaleService
         }
 
         // A single payment may be posted as one object instead of an array.
-        if (isset($input['method'])) {
+        if (isset($input['amount'])) {
             $input = [$input];
         }
 
-        return array_map(function (array $payment, int $index): array {
-            $methodValue = (string) ($payment['method'] ?? PaymentMethod::Cash->value);
+        return array_map(function (array $payment): array {
+            $shaped = array_filter([
+                'channel' => (string) ($payment['channel'] ?? PaymentChannel::Cash->value),
+                'amount' => isset($payment['amount']) ? (string) $payment['amount'] : null,
+                'tendered' => isset($payment['tendered']) ? (string) $payment['tendered'] : null,
+                'reference' => isset($payment['reference']) ? trim((string) $payment['reference']) : null,
+                'notes' => isset($payment['notes']) ? trim((string) $payment['notes']) : null,
+            ], fn ($value) => $value !== null && $value !== '');
 
-            try {
-                $method = PaymentMethod::from($methodValue);
-            } catch (\ValueError) {
-                throw ValidationException::withMessages([
-                    "payments.{$index}.method" => "Unknown payment method {$methodValue}.",
-                ]);
+            if (! empty($payment['payment_method_id'])) {
+                $shaped['payment_method_id'] = (int) $payment['payment_method_id'];
             }
 
-            $amount = isset($payment['amount']) ? (string) $payment['amount'] : '0';
-
-            if (! preg_match('/^-?\d+(\.\d{1,4})?$/', $amount)) {
-                throw ValidationException::withMessages([
-                    "payments.{$index}.amount" => 'Payment amounts must be a number with at most four decimals.',
-                ]);
+            if (isset($payment['metadata']) && is_array($payment['metadata'])) {
+                $shaped['metadata'] = $payment['metadata'];
             }
 
-            $tendered = isset($payment['tendered']) ? (string) $payment['tendered'] : '0';
-
-            if (! preg_match('/^-?\d+(\.\d{1,4})?$/', $tendered)) {
-                throw ValidationException::withMessages([
-                    "payments.{$index}.tendered" => 'Tendered amounts must be a number with at most four decimals.',
-                ]);
-            }
-
-            return [
-                'method' => $method,
-                'amount' => $amount,
-                'tendered' => $tendered,
-                'notes' => isset($payment['notes']) ? trim((string) $payment['notes']) ?: null : null,
-            ];
-        }, $input, array_keys($input));
+            return $shaped;
+        }, $input);
     }
 
     /**

@@ -55,6 +55,13 @@ final class PermissionCatalogue
             'sales' => [
                 'sales.view', 'sales.create', 'sales.complete', 'sales.cancel',
             ],
+            // How a shop is allowed to be paid is configuration, and taking a
+            // payment record away after the fact is not something the till
+            // screen should be able to do, so delete sits apart from transact.
+            'payment_methods' => [
+                'payment_methods.view', 'payment_methods.create',
+                'payment_methods.update', 'payment_methods.delete',
+            ],
         ];
     }
 
@@ -93,6 +100,7 @@ final class PermissionCatalogue
                 ->push('settings.view')
                 ->push('inventory.view')
                 ->push('purchases.view')
+                ->push('payment_methods.view')
                 ->push('pos.view', 'pos.transact', 'pos.hold')
                 ->values()
                 ->all(),
@@ -103,6 +111,9 @@ final class PermissionCatalogue
                 'products.view',
                 'customers.view',
                 'customers.create',
+                // The till needs to know which methods its shop accepts, but not
+                // to redefine them.
+                'payment_methods.view',
                 'pos.view', 'pos.transact', 'pos.hold',
                 // A cashier raises and settles the ticket; taking one back is a
                 // supervisor's call, so sales.cancel is deliberately absent.
@@ -120,7 +131,7 @@ final class PermissionCatalogue
                 ->all(),
 
             'finance' => collect(self::groups())
-                ->only(['suppliers', 'taxes', 'sales'])
+                ->only(['suppliers', 'taxes', 'sales', 'payment_methods'])
                 ->flatten()
                 ->push('settings.view')
                 ->push('purchases.view', 'purchases.approve')
@@ -139,6 +150,7 @@ final class PermissionCatalogue
                 ->flatten()
                 ->push('audit.view', 'settings.view')
                 ->push('inventory.view', 'purchases.view', 'sales.view')
+                ->push('payment_methods.view')
                 ->push('reports.inventory', 'reports.purchasing')
                 ->values()
                 ->all(),
@@ -200,6 +212,10 @@ final class PermissionCatalogue
             'sales.complete' => 'Complete sales',
             'sales.create' => 'Create sales',
             'sales.view' => 'View sales',
+            'payment_methods.create' => 'Create payment methods',
+            'payment_methods.delete' => 'Delete payment methods',
+            'payment_methods.update' => 'Update payment methods',
+            'payment_methods.view' => 'View payment methods',
             'registers.create' => 'Create registers',
             'registers.delete' => 'Delete registers',
             'registers.update' => 'Update registers',

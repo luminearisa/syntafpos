@@ -12,11 +12,17 @@ import { Badge } from '@/components/ui/badge';
 import { CART_QUERY_KEY } from '@/features/pos/use-pos-cart';
 import { moneyUnits, subMoney } from './money-math';
 import {
-  nextTenderKey,
+  defaultTenderMethod,
+  newTender,
   paymentsPayload,
   summarise,
+  applyTenderPatch,
+  tenderProblems,
+  withDefaultMethods,
+  availableMethods,
   type TenderLine,
 } from './tender-model';
+import { useAvailablePaymentMethods } from '@/features/payments/use-payment-methods';
 import { TenderRow } from './tenders';
 import { PrintButtons } from './print-buttons';
 import { useReceiptPrinter } from './print';
@@ -82,21 +88,25 @@ function CheckoutForm({
 }) {
   const client = useQueryClient();
   const { toast } = useToast();
-  const [tenders, setTenders] = useState<TenderLine[]>(() => [
-    { key: nextTenderKey(), method: 'cash', amount: '', tendered: '' },
-  ]);
+  const methods = useAvailablePaymentMethods();
+  const methodList = availableMethods(methods.data?.data);
+  const [tenders, setTenders] = useState<TenderLine[]>(() => [newTender(null)]);
   const [notes, setNotes] = useState('');
 
   const total = cart.grand_total;
   const lines = cart.items ?? [];
-  const summary = useMemo(() => summarise(total, tenders), [total, tenders]);
+  // The rows the dialog shows and sends, with the shop's default method adopted
+  // once the list has answered.
+  const tenderRows = useMemo(() => withDefaultMethods(tenders, methodList), [tenders, methodList]);
+  const summary = useMemo(() => summarise(total, tenderRows), [total, tenderRows]);
+  const problems = tenderProblems(tenderRows);
 
   const checkout = useMutation({
     mutationFn: () =>
       saleApi.checkout({
         cart_id: cart.id,
         notes: notes.trim() === '' ? null : notes.trim(),
-        payments: paymentsPayload(tenders),
+        payments: paymentsPayload(tenderRows),
       }),
     onSuccess: (response) => {
       onIssued(response.data);
@@ -115,27 +125,44 @@ function CheckoutForm({
 
   const patch = (key: string, change: Partial<TenderLine>) => {
     setTenders((current) =>
-      current.map((tender) => (tender.key === key ? { ...tender, ...change } : tender))
+      current.map((tender) => (tender.key === key ? applyTenderPatch(tender, change) : tender))
     );
   };
 
   const addTender = () => {
     setTenders((current) => [
       ...current,
-      { key: nextTenderKey(), method: 'cash', amount: summary.balance, tendered: '' },
+      newTender(current[0]?.method ?? defaultTenderMethod(methodList), summary.balance),
     ]);
   };
 
-  /** One keystroke from the common case: the customer hands over the exact bill. */
+  /**
+   * One keystroke from the common case: the customer hands over the exact bill.
+   *
+   * It also picks the shop's default method on an untouched row, so a till that
+   * takes "cash, always" needs a single button and no choosing.
+   */
   const fillBalance = () => {
     setTenders((current) => {
-      const row = { key: nextTenderKey(), method: 'cash' as const, amount: summary.balance, tendered: '' };
+      if (current.length === 0) {
+        return [newTender(defaultTenderMethod(methodList), summary.balance)];
+      }
 
-      return current.length === 0 ? [row] : [{ ...current[0]!, amount: summary.balance }, ...current.slice(1)];
+      const first = current[0]!;
+
+      return [
+        {
+          ...first,
+          amount: summary.balance,
+          method: first.method ?? defaultTenderMethod(methodList),
+          chosen: true,
+        },
+        ...current.slice(1),
+      ];
     });
   };
 
-  const canPay = summary.settled && !summary.over && !checkout.isPending;
+  const canPay = summary.settled && !summary.over && problems.length === 0 && !checkout.isPending;
 
   return (
     <Modal
@@ -188,6 +215,7 @@ function CheckoutForm({
               icon="checkmark-circle-outline"
               loading={checkout.isPending}
               disabled={!canPay}
+              title={problems[0]}
               onClick={() => checkout.mutate()}
             >
               Pay {formatMoneyString(summary.total)}
@@ -233,10 +261,14 @@ function CheckoutForm({
         </div>
 
         <div className="flex flex-col gap-2">
-          {tenders.map((tender) => (
+          {methods.isPending && (
+            <p className="text-xs text-text-subtle">Loading this shop's payment methods…</p>
+          )}
+          {tenderRows.map((tender) => (
             <TenderRow
               key={tender.key}
               tender={tender}
+              methods={methodList}
               balance={summary.balance}
               onChange={(change) => patch(tender.key, change)}
               onRemove={() =>
@@ -255,6 +287,14 @@ function CheckoutForm({
           maxLength={2000}
           onChange={(event) => setNotes(event.target.value)}
         />
+
+        {problems.length > 0 && (
+          <ul className="flex flex-col gap-0.5 text-xs text-danger">
+            {problems.map((problem) => (
+              <li key={problem}>{problem}</li>
+            ))}
+          </ul>
+        )}
 
         {summary.over && (
           <p className="text-xs text-danger">
@@ -366,7 +406,7 @@ function IssuedSale({ sale, onAnother }: { sale: Sale; onAnother: () => void }) 
             sale.payments.map((payment) => (
               <div key={payment.id} className="flex items-baseline justify-between gap-2 text-sm">
                 <span className="text-text-muted">
-                  {payment.method_label}
+                  {payment.method_name || payment.channel_label}
                   <span className="ml-2 font-mono text-[11px] text-text-subtle">
                     {payment.number}
                   </span>

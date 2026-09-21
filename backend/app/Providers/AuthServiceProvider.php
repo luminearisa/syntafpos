@@ -12,6 +12,7 @@ use App\Models\Company;
 use App\Models\Customer;
 use App\Models\CustomerGroup;
 use App\Models\GoodsReceipt;
+use App\Models\PaymentMethod;
 use App\Models\PosCart;
 use App\Models\PriceList;
 use App\Models\Product;
@@ -43,6 +44,7 @@ use App\Policies\CompanyPolicy;
 use App\Policies\CustomerGroupPolicy;
 use App\Policies\CustomerPolicy;
 use App\Policies\GoodsReceiptPolicy;
+use App\Policies\PaymentMethodPolicy;
 use App\Policies\PosCartPolicy;
 use App\Policies\PriceListPolicy;
 use App\Policies\ProductBarcodePolicy;
@@ -99,6 +101,7 @@ class AuthServiceProvider extends ServiceProvider
         GoodsReceipt::class => GoodsReceiptPolicy::class,
         PurchaseReturn::class => PurchaseReturnPolicy::class,
         PosCart::class => PosCartPolicy::class,
+        PaymentMethod::class => PaymentMethodPolicy::class,
         Sale::class => SalePolicy::class,
     ];
 

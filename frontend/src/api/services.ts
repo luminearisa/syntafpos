@@ -16,6 +16,7 @@ import type {
   ImportPreviewResponse,
   ListParams,
   LoginResponse,
+  PaymentMethod,
   LowStockRow,
   AddCartLinePayload,
   HeldCart,
@@ -273,6 +274,7 @@ export type {
   ImportPreviewResponse,
   LoginResponse,
   LowStockRow,
+  PaymentMethod,
   AddCartLinePayload,
   HeldCart,
   Permission,
@@ -868,4 +870,35 @@ export const saleApi = {
       url: `/sales/${id}/receipt`,
       params: { width },
     }),
+};
+
+/**
+ * Payment methods (Phase 3.3): the shop's own list of ways to take money.
+ *
+ * Two lists from one set of rows. The admin list is the configuration itself,
+ * paginated and filterable; `available` is what a till may offer right now, and it
+ * answers with built-in defaults when a shop has configured nothing — a blank list
+ * here would stop a shop selling, which is not what an untouched setting means.
+ *
+ * There is no hard delete on the far side: a method that has taken money is
+ * deactivated, so the payment rows keep pointing at something with a name.
+ */
+export const paymentMethodApi = {
+  list: (params: ListParams = {}) =>
+    request<PaymentMethod[]>({ method: 'GET', url: '/payment-methods', params }),
+
+  available: () =>
+    request<PaymentMethod[]>({ method: 'GET', url: '/payment-methods/available' }),
+
+  show: (id: number) =>
+    request<PaymentMethod>({ method: 'GET', url: `/payment-methods/${id}` }),
+
+  create: (data: Partial<PaymentMethod>) =>
+    request<PaymentMethod>({ method: 'POST', url: '/payment-methods', data }),
+
+  update: (id: number, data: Partial<PaymentMethod>) =>
+    request<PaymentMethod>({ method: 'PUT', url: `/payment-methods/${id}`, data }),
+
+  remove: (id: number) =>
+    request<null>({ method: 'DELETE', url: `/payment-methods/${id}` }),
 };

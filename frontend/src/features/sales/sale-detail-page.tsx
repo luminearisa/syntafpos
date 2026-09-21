@@ -353,19 +353,42 @@ function SaleItemRow({ item }: { item: SaleItem }) {
   );
 }
 
+/**
+ * One tender, as the ledger recorded it.
+ *
+ * The method name printed here is the snapshot on the payment row, not a lookup of
+ * the shop's current configuration: a shop that renames "QRIS (launch promo)" to
+ * "QRIS" must not rewrite what a past receipt said.
+ *
+ * A tender that settled nothing is shown but struck through and labelled, rather
+ * than hidden — a declined card is part of why the ticket is still open.
+ */
 function PaymentRow({ payment }: { payment: SalePayment }) {
-  const voided = payment.status === 'voided';
+  const settled = payment.status === 'paid' || payment.status === 'partially_refunded';
+  const inert = payment.status === 'cancelled' || payment.status === 'failed';
+  const refunded = moneyUnits(payment.refunded_amount) > 0;
 
   return (
     <div className="flex items-baseline justify-between gap-2">
       <div className="flex min-w-0 flex-col">
-        <span className={voided ? 'text-text-subtle line-through' : 'text-text'}>
-          {payment.method_label ?? labelFor.paymentMethod(payment.method)}
+        <span className={inert ? 'text-text-subtle line-through' : 'text-text'}>
+          {payment.method_name || payment.channel_label || labelFor.paymentChannel(payment.channel)}
         </span>
-        <span className="font-mono text-[11px] text-text-subtle">{payment.number}</span>
+        <span className="font-mono text-[11px] text-text-subtle">
+          {payment.number}
+          {payment.reference && <span className="ml-2 text-text-muted">{payment.reference}</span>}
+        </span>
+        {payment.paid_at && (
+          <span className="text-[11px] text-text-subtle">{formatDate(payment.paid_at)}</span>
+        )}
       </div>
       <div className="flex shrink-0 flex-col items-end">
-        <span className={voided ? 'font-mono text-text-subtle line-through' : 'font-mono text-text'}>
+        <span
+          className={cn(
+            'font-mono tabular-nums',
+            inert ? 'text-text-subtle line-through' : 'text-text'
+          )}
+        >
           {formatMoneyString(payment.amount)}
         </span>
         {moneyUnits(payment.change) > 0 && (
@@ -373,7 +396,16 @@ function PaymentRow({ payment }: { payment: SalePayment }) {
             change {formatMoneyString(payment.change)}
           </span>
         )}
-        {voided && <span className="text-[10px] text-danger">voided</span>}
+        {refunded && (
+          <span className="font-mono text-[11px] text-warning">
+            refunded {formatMoneyString(payment.refunded_amount)} · holding{' '}
+            {formatMoneyString(payment.net_amount)}
+          </span>
+        )}
+        {!settled && !inert && (
+          <span className="text-[10px] text-warning">{payment.status_label}</span>
+        )}
+        {inert && <span className="text-[10px] text-danger">{payment.status_label}</span>}
       </div>
     </div>
   );

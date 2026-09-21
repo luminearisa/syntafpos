@@ -147,7 +147,8 @@ return new class extends Migration
             $table->foreignId('register_id')->nullable()->constrained()->nullOnDelete();
             $table->foreignId('received_by')->nullable()->constrained('users')->nullOnDelete();
             $table->string('number', 64);
-            // cash | card | debit | credit | wallet | transfer | other
+            // Subphase 3.3 replaced this column with payment_method_id plus the
+            // channel and method-name snapshot; see 2026_09_21_000800.
             $table->string('method', 24)->default('cash');
             $table->decimal('amount', 20, 4);
             // tendered - amount for cash, so the drawer reconciliation in a

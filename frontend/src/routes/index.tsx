@@ -30,6 +30,9 @@ const CategoriesPage = lazy(() => import('@/features/catalog/categories-page'));
 const BrandsPage = lazy(() => import('@/features/catalog/brands-page'));
 const UnitsPage = lazy(() => import('@/features/catalog/units-page'));
 const TaxesPage = lazy(() => import('@/features/catalog/taxes-page'));
+const PaymentMethodsPage = lazy(
+  () => import('@/features/payments/payment-methods-page')
+);
 const AttributesPage = lazy(() => import('@/features/catalog/attributes-page'));
 const CustomersPage = lazy(() => import('@/features/parties/customers-page'));
 const SuppliersPage = lazy(() => import('@/features/parties/suppliers-page'));
@@ -236,6 +239,14 @@ export const routes: RouteObject[] = [
         element: (
           <PageWrapper>
             <AttributesPage />
+          </PageWrapper>
+        ),
+      },
+      {
+        path: '/payment-methods',
+        element: (
+          <PageWrapper>
+            <PaymentMethodsPage />
           </PageWrapper>
         ),
       },

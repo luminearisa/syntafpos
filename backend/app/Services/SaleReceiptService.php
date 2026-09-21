@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\SaleStatus;
 use App\Models\Sale;
 use App\Models\SaleItem;
+use App\Models\SalePayment;
 use App\Support\DecimalMath;
 use App\Support\MoneyFormat;
 
@@ -97,16 +98,41 @@ class SaleReceiptService
             true
         );
 
-        foreach ($sale->payments as $payment) {
-            if ($payment->status?->countsTowardPaid() !== true) {
-                continue;
-            }
+        // Amount, method, paid, change, reference — the five things the spec asks
+        // a receipt to prove. One block per tender rather than one blended figure,
+        // because a split payment of cash and QRIS is settled in two different
+        // places and a customer's own copy has to name both. A tender that has
+        // been cancelled or failed is not printed at all: paper showing money the
+        // till is not holding is worse than paper saying nothing about it.
+        $counted = $sale->payments->filter(
+            fn (SalePayment $payment) => $payment->status?->countsTowardPaid() === true
+        );
 
+        foreach ($counted as $payment) {
             $lines[] = $this->pair(
-                (string) $payment->method?->label(),
+                (string) $payment->method_name,
                 MoneyFormat::format($payment->amount, $sale->currency),
                 $columns
             );
+
+            if ($payment->paid_at) {
+                $lines[] = $this->pair('Paid', $payment->paid_at->format('d M Y H:i'), $columns);
+            }
+
+            if (bccomp((string) $payment->change, '0', 4) > 0) {
+                $lines[] = $this->pair('Change', MoneyFormat::format($payment->change, $sale->currency), $columns);
+            }
+
+            if (filled($payment->reference)) {
+                $lines[] = $this->pair('Reference', (string) $payment->reference, $columns);
+            }
+        }
+
+        // Only a split tender needs the roll-up; on a single payment the lines
+        // above already say it, and repeating the figure twice invites the reader
+        // to add them up.
+        if ($counted->count() > 1) {
+            $lines[] = $this->pair('Paid', MoneyFormat::format($sale->paid_total, $sale->currency), $columns);
         }
 
         $balance = $this->balance($sale);
@@ -115,7 +141,7 @@ class SaleReceiptService
             $lines[] = $this->pair('Balance', MoneyFormat::format($balance, $sale->currency), $columns);
         }
 
-        if (bccomp((string) $sale->change_due, '0', 4) > 0) {
+        if ($counted->count() > 1 && bccomp((string) $sale->change_due, '0', 4) > 0) {
             $lines[] = $this->pair('Change', MoneyFormat::format($sale->change_due, $sale->currency), $columns);
         }
 
@@ -163,13 +189,27 @@ class SaleReceiptService
                 .'</tr>';
         }
 
+        // Method, amount, paid, reference — one row per tender, in the order they
+        // were taken. A tender that did not settle keeps its row with the status
+        // spelled out: an invoice that silently drops a failed card payment reads
+        // as if the money had been tried and never mentioned, and that is exactly
+        // the gap an accounts department later asks about.
         $payments = '';
         foreach ($sale->payments as $payment) {
-            $payments .= '<tr>'
-                .'<td>'.e((string) $payment->method?->label()).'</td>'
-                .'<td class="ref">'.e((string) $payment->number).'</td>'
+            $method = e((string) $payment->method_name);
+            $counted = $payment->status?->countsTowardPaid() === true;
+
+            $payments .= '<tr'.($counted ? '' : ' class="void"').'>'
+                .'<td>'.$method.($counted ? '' : ' <span class="ref">('.e((string) $payment->status?->label()).')</span>').'</td>'
+                .'<td class="ref">'.e((string) ($payment->reference ?: $payment->number)).'</td>'
+                .'<td class="ref">'.e($payment->paid_at?->format('d M Y H:i') ?? '—').'</td>'
                 .'<td class="n">'.e(MoneyFormat::format($payment->amount, $sale->currency)).'</td>'
                 .'</tr>';
+
+            if (bccomp((string) $payment->change, '0', 4) > 0) {
+                $payments .= '<tr><td></td><td colspan="2" class="ref">Change from tender</td>'
+                    .'<td class="n">'.e(MoneyFormat::format($payment->change, $sale->currency)).'</td></tr>';
+            }
         }
 
         $balance = $this->balance($sale);
@@ -205,10 +245,12 @@ class SaleReceiptService
             .'</tr></thead><tbody>'.$rows.'</tbody><tfoot>'.$summary.'</tfoot></table>'
 
             .'<section class="settle"><div><h3>Payments</h3>'
-                .'<table class="payments"><tbody>'.$payments
-                    .'<tr><td>Received</td><td></td><td class="n">'.e(MoneyFormat::format($sale->paid_total, $sale->currency)).'</td></tr>'
-                    .'<tr><td>Balance</td><td></td><td class="n">'.e(MoneyFormat::format($balance, $sale->currency)).'</td></tr>'
-                    .'<tr><td>Change</td><td></td><td class="n">'.e(MoneyFormat::format($sale->change_due, $sale->currency)).'</td></tr>'
+                .'<table class="payments"><thead><tr>'
+                    .'<th>Method</th><th>Reference</th><th>Paid</th><th class="n">Amount</th>'
+                .'</tr></thead><tbody>'.$payments
+                    .'<tr class="tot"><td colspan="3">Received</td><td class="n">'.e(MoneyFormat::format($sale->paid_total, $sale->currency)).'</td></tr>'
+                    .'<tr class="tot"><td colspan="3">Balance</td><td class="n">'.e(MoneyFormat::format($balance, $sale->currency)).'</td></tr>'
+                    .'<tr class="tot"><td colspan="3">Change</td><td class="n">'.e(MoneyFormat::format($sale->change_due, $sale->currency)).'</td></tr>'
                 .'</tbody></table></div>'
                 .'<div class="stamp"><span>'.e($this->stampLabel($sale, $balance)).'</span></div>'
             .'</section>'
@@ -410,13 +452,22 @@ class SaleReceiptService
      * A label/value pair with the value right-aligned on the same column every
      * time, which is what a cashier points at when a customer asks a question.
      */
+    /**
+     * One label and one figure on a line, the figure against the right edge.
+     *
+     * The label budget follows the paper: a 58mm roll has 32 characters to spend
+     * and must keep most of them for the amount, while an 80mm roll has room to
+     * name a method in full. Truncating a payment method to "Bank transfe" is the
+     * kind of thing that makes a customer phone the shop about their own receipt.
+     */
     private function pair(string $label, string $value, int $columns): string
     {
-        $label = substr($label, 0, 11);
-        $room = $columns - 12;
+        $budget = $columns >= 40 ? 16 : 11;
+        $label = substr($label, 0, $budget);
+        $room = $columns - $budget - 1;
         $value = strlen($value) > $room ? substr($value, -$room) : $value;
 
-        return $this->line(str_pad($label, 12, ' ').str_pad($value, $room, ' ', STR_PAD_LEFT), 'left');
+        return $this->line(str_pad($label, $budget + 1, ' ').str_pad($value, $room, ' ', STR_PAD_LEFT), 'left');
     }
 
     private function rule(int $columns): string
@@ -479,8 +530,11 @@ class SaleReceiptService
           .settle { display: flex; gap: 12mm; margin-top: 8mm; align-items: flex-start; }
           .settle > div { flex: 1; }
           table.payments { width: 100%; border-collapse: collapse; }
+          table.payments th { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: #5b6270; text-align: left; border-bottom: 1px solid #d7dae0; padding: 4px 6px; }
           table.payments td { border-bottom: 1px solid #eceef2; padding: 4px 6px; }
           table.payments .ref { color: #5b6270; }
+          table.payments tr.void td { color: #9aa1ad; }
+          table.payments tr.tot td { border-bottom: none; font-weight: 600; }
           .stamp { border: 2px solid #16181d; border-radius: 3px; padding: 6mm 4mm; text-align: center; font-weight: 700; letter-spacing: .1em; }
           .notes { margin-top: 6mm; }
           footer { margin-top: 8mm; padding-top: 3mm; border-top: 1px solid #d7dae0; color: #5b6270; font-size: 10.5px; text-align: center; }

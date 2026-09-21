@@ -268,14 +268,23 @@ export const labelFor = {
     return labels[value] ?? value;
   },
 
-  paymentMethod: (value: string | null | undefined): string => {
+  /**
+   * A payment *channel*, not a shop's method name.
+   *
+   * A sale row already carries `method_name` — what the shop called it at the
+   * counter — and prints that. This is the fallback for a row where that snapshot
+   * is missing, and the catalogue words behind the nine kinds of money.
+   */
+  paymentChannel: (value: string | null | undefined): string => {
     const labels: Record<string, string> = {
       cash: 'Cash',
-      card: 'Card',
-      debit: 'Debit',
-      credit: 'Credit',
-      wallet: 'E-wallet',
-      transfer: 'Transfer',
+      bank_transfer: 'Bank transfer',
+      debit: 'Debit card',
+      credit_card: 'Credit card',
+      qris: 'QRIS',
+      e_wallet: 'E-wallet',
+      virtual_account: 'Virtual account',
+      customer_credit: 'Customer credit',
       other: 'Other',
     };
 

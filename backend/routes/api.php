@@ -164,6 +164,10 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         // the invoices printed from them.
         require __DIR__.'/sales.php';
 
+        // Phase 3.3 — the ways a shop agrees to be paid, and the defaults a till
+        // falls back on before anyone has configured them.
+        require __DIR__.'/payment-methods.php';
+
         Route::prefix('settings')->group(function () {
             Route::get('/', [SettingsController::class, 'index'])->name('settings.index');
             Route::get('{key}', [SettingsController::class, 'show'])->name('settings.show');

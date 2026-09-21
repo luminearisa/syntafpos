@@ -93,6 +93,12 @@ function buildGroups(): NavGroup[] {
           icon: 'options-outline',
           permission: 'attributes.view',
         },
+        {
+          label: 'Payment Methods',
+          to: '/payment-methods',
+          icon: 'wallet-outline',
+          permission: 'payment_methods.view',
+        },
       ],
     },
     {

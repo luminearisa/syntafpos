@@ -233,6 +233,9 @@ export interface ListParams {
   action?: string;
   entity_type?: string;
   user_id?: number;
+  /** Payment methods (3.3): filter by channel, or hide the retired ones. */
+  channel?: string;
+  active_only?: string;
 }
 
 /* ------------------------- Phase 2: Catalog master ------------------------- */
@@ -1245,33 +1248,109 @@ export type SaleStatus =
   | 'completed'
   | 'cancelled';
 
-/** How the customer handed over money. Only cash is tendered at a till. */
-export type PaymentMethod =
+/**
+ * What kind of money a tender was — the catalogue, not the shop's configuration.
+ *
+ * Nine values, closed, because behaviour follows them: only `cash` can hand change
+ * back, only `customer_credit` draws down an account. What a shop gets to choose is
+ * the `PaymentMethod` row below, which points at exactly one of these.
+ */
+export type PaymentChannel =
   | 'cash'
-  | 'card'
+  | 'bank_transfer'
   | 'debit'
-  | 'credit'
-  | 'wallet'
-  | 'transfer'
+  | 'credit_card'
+  | 'qris'
+  | 'e_wallet'
+  | 'virtual_account'
+  | 'customer_credit'
   | 'other';
 
-/** A tender's own state; `voided` is what a cancellation leaves behind. */
-export type SalePaymentStatus = 'pending' | 'completed' | 'voided';
+/**
+ * A tender's own state.
+ *
+ * `cancelled` is what a withdrawn sale leaves behind, `refunded` and
+ * `partially_refunded` what money given back leaves behind; a failed tender still
+ * exists as a row, it just settled nothing.
+ */
+export type SalePaymentStatus =
+  | 'pending'
+  | 'paid'
+  | 'failed'
+  | 'cancelled'
+  | 'refunded'
+  | 'partially_refunded';
 
 export type ReceiptWidth = '58' | '80' | 'a4';
+
+/**
+ * One way this shop takes money, as its owner configured it.
+ *
+ * `takes_tender` and `uses_customer_account` are reported rather than stored: they
+ * follow from `channel`, and a till that read them from a checkbox could be talked
+ * into opening a cash box for a card payment.
+ */
+export interface PaymentMethod {
+  id: number | null;
+  company_id: number | null;
+  code: string;
+  name: string;
+  channel: PaymentChannel;
+  channel_label: string;
+  /** Gateway key; null records the tender at the counter itself. */
+  provider: string | null;
+  icon: string | null;
+  description: string | null;
+  requires_reference: boolean;
+  is_default: boolean;
+  is_active: boolean;
+  sort_order: number;
+  settings: Record<string, unknown> | null;
+  takes_tender: boolean;
+  uses_customer_account: boolean;
+  /** Absent unless the endpoint counted it. */
+  payments_count?: number;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface SalePaymentInput {
+  /** A configured row wins; `channel` is the fallback for a till with none loaded. */
+  payment_method_id?: number | null;
+  channel?: PaymentChannel;
+  amount: string;
+  /** Cash only: what the customer handed over, so the server can compute change. */
+  tendered?: string;
+  reference?: string | null;
+  notes?: string | null;
+}
 
 export interface SalePayment {
   id: number;
   sale_id: number;
   number: string;
-  method: PaymentMethod;
-  method_label: string;
+
+  /** The shop's configuration this was taken on, once the row behind it. */
+  payment_method_id: number | null;
+  channel: PaymentChannel;
+  channel_label: string;
+  /** What the method was called when the money came in — a snapshot, not a join. */
+  method_name: string;
+
   amount: string;
+  currency: string;
   tendered: string;
   change: string;
+  refunded_amount: string;
+  /** amount − refunded_amount: what the shop is still holding. */
+  net_amount: string;
+
   status: SalePaymentStatus;
-  /** The seam Subphase 3.8 fills with a gateway authorisation id. */
+  status_label: string;
+  /** A gateway authorisation id, or the reference the cashier typed. */
   reference: string | null;
+  paid_at: string | null;
+  metadata: Record<string, unknown> | null;
   notes: string | null;
   received_by: number | null;
   created_at: string | null;
@@ -1377,14 +1456,6 @@ export interface Sale {
 
   created_at?: string | null;
   updated_at?: string | null;
-}
-
-/** One tender as the till types it; `tendered` only means anything for cash. */
-export interface SalePaymentInput {
-  method: PaymentMethod;
-  amount: string;
-  tendered?: string;
-  notes?: string | null;
 }
 
 export interface CheckoutPayload {
