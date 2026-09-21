@@ -17,7 +17,13 @@ import type {
   ListParams,
   LoginResponse,
   LowStockRow,
+  AddCartLinePayload,
+  HeldCart,
   Permission,
+  PosCart,
+  PosCartLineResponse,
+  PosProduct,
+  PosScanResult,
   PriceList,
   Product,
   ProductAnalyticsRow,
@@ -262,7 +268,13 @@ export type {
   ImportPreviewResponse,
   LoginResponse,
   LowStockRow,
+  AddCartLinePayload,
+  HeldCart,
   Permission,
+  PosCart,
+  PosCartLineResponse,
+  PosProduct,
+  PosScanResult,
   PriceList,
   Product,
   ProductAnalyticsRow,
@@ -746,4 +758,76 @@ export const exportApi = {
 
     return `/api/v1/exports/${entity}?${search.toString()}`;
   },
+};
+
+/* ------------------------- Phase 3.1: Point of sale ------------------------- */
+
+/**
+ * The till.
+ *
+ * `current` and `create` answer the same way on purpose: opening the till is
+ * idempotent, so a reload, a dropped request or a second tab resumes the cart
+ * the cashier is already working instead of orphaning a scan.
+ *
+ * There is no client-side cart total here. Every mutation returns the cart as
+ * the server recomputed it, which is what keeps the number on screen and the
+ * number checkout charges from drifting apart.
+ */
+export const posApi = {
+  searchProducts: (params: {
+    search?: string;
+    barcode?: string;
+    category_id?: number;
+    brand_id?: number;
+    page?: number;
+    per_page?: number;
+  } = {}) =>
+    request<PosProduct[]>({ method: 'GET', url: '/pos/products/search', params }),
+
+  /** A scan is the search endpoint with `barcode`, so it shares one call. */
+  scan: (barcode: string) =>
+    request<PosScanResult>({
+      method: 'GET',
+      url: '/pos/products/search',
+      params: { barcode },
+    }),
+
+  current: () => request<PosCart>({ method: 'GET', url: '/pos/cart' }),
+  create: () => request<PosCart>({ method: 'POST', url: '/pos/cart' }),
+
+  show: (cartId: number) => request<PosCart>({ method: 'GET', url: `/pos/cart/${cartId}` }),
+
+  /** Customer, cart discount, note, label. Money entered here is an input only. */
+  update: (cartId: number, data: Record<string, unknown>) =>
+    request<PosCart>({ method: 'PUT', url: `/pos/cart/${cartId}`, data }),
+
+  addItem: (cartId: number, data: AddCartLinePayload) =>
+    request<PosCartLineResponse>({ method: 'POST', url: `/pos/cart/${cartId}/items`, data }),
+
+  updateItem: (
+    cartId: number,
+    itemId: number,
+    data: { quantity?: string; discount?: string; discount_type?: string; notes?: string | null }
+  ) =>
+    request<PosCartLineResponse>({
+      method: 'PUT',
+      url: `/pos/cart/${cartId}/items/${itemId}`,
+      data,
+    }),
+
+  removeItem: (cartId: number, itemId: number) =>
+    request<PosCart>({ method: 'DELETE', url: `/pos/cart/${cartId}/items/${itemId}` }),
+
+  clear: (cartId: number) =>
+    request<PosCart>({ method: 'DELETE', url: `/pos/cart/${cartId}/items` }),
+
+  hold: (cartId: number) => request<PosCart>({ method: 'POST', url: `/pos/cart/${cartId}/hold` }),
+
+  held: () => request<HeldCart[]>({ method: 'GET', url: '/pos/cart/held' }),
+
+  recall: (number: string) =>
+    request<PosCart>({ method: 'POST', url: '/pos/cart/recall', data: { number } }),
+
+  removeHeld: (cartId: number) =>
+    request<null>({ method: 'DELETE', url: `/pos/cart/${cartId}` }),
 };

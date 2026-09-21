@@ -156,6 +156,10 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         require __DIR__.'/imports.php';
         require __DIR__.'/exports.php';
 
+        // Phase 3.1 — the point-of-sale till: product search, the working cart
+        // and its held drafts.
+        require __DIR__.'/pos.php';
+
         Route::prefix('settings')->group(function () {
             Route::get('/', [SettingsController::class, 'index'])->name('settings.index');
             Route::get('{key}', [SettingsController::class, 'show'])->name('settings.show');

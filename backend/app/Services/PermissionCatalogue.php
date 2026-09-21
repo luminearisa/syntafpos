@@ -47,6 +47,9 @@ final class PermissionCatalogue
                 'purchases.approve', 'purchases.receive', 'purchases.cancel',
             ],
             'reports' => ['reports.inventory', 'reports.purchasing'],
+
+            // Phase 3 — point of sale.
+            'pos' => ['pos.view', 'pos.transact', 'pos.hold'],
         ];
     }
 
@@ -84,6 +87,7 @@ final class PermissionCatalogue
                 ->push('settings.view')
                 ->push('inventory.view')
                 ->push('purchases.view')
+                ->push('pos.view', 'pos.transact', 'pos.hold')
                 ->values()
                 ->all(),
 
@@ -93,6 +97,7 @@ final class PermissionCatalogue
                 'products.view',
                 'customers.view',
                 'customers.create',
+                'pos.view', 'pos.transact', 'pos.hold',
             ],
 
             'warehouse' => collect(self::groups())
@@ -139,6 +144,9 @@ final class PermissionCatalogue
             'attributes.delete' => 'Delete attributes',
             'attributes.update' => 'Update attributes',
             'attributes.view' => 'View attributes',
+            'pos.hold' => 'Hold and recall carts',
+            'pos.transact' => 'Work a point-of-sale cart',
+            'pos.view' => 'View the point of sale',
             'audit.view' => 'View system',
             'branches.create' => 'Create branches',
             'branches.delete' => 'Delete branches',

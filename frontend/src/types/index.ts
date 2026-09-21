@@ -516,6 +516,8 @@ export interface Customer {
   is_active: boolean;
   created_at: string | null;
   customer_group?: CustomerGroup | null;
+  /** Nested by the list/show endpoints so a picker can name the tier. */
+  price_list?: { id: number; company_id: number; name: string; status?: string } | null;
 }
 
 export interface Supplier {
@@ -1058,4 +1060,171 @@ export interface ImportPreviewResponse {
 export interface ImportCommitResponse {
   entity: string;
   imported: number;
+}
+
+/* ------------------------- Phase 3.1: Point of sale ------------------------- */
+
+/**
+ * A cart is a draft sale on the till. It is not a document: it never reserves
+ * stock and never produces revenue, so nothing here feeds inventory or
+ * accounting. Checkout in Subphase 3.2 consumes it.
+ *
+ * Money and quantities arrive as exact decimal strings, the same contract the
+ * rest of the API keeps — a JS number would put a float on the money path.
+ */
+export type CartStatus = 'active' | 'held';
+
+// DiscountType ('amount' | 'percent') is already declared with the purchasing
+// documents; a cart line and a cart header use the same two modes.
+
+export type PriceSource =
+  | 'price_list'
+  | 'customer_group'
+  | 'branch'
+  | 'default_list'
+  | 'variant'
+  | 'product';
+
+export interface PosCartItem {
+  id: number;
+  pos_cart_id: number;
+  product_id: number;
+  product_variant_id: number | null;
+  unit_id: number | null;
+  tax_id: number | null;
+
+  product_name: string;
+  product_sku: string;
+  barcode: string | null;
+  variant_name: string | null;
+  unit_code: string | null;
+
+  quantity: string;
+  unit_price: string;
+  price_source: PriceSource;
+  discount: string;
+  discount_type: DiscountType;
+  discount_amount: string;
+  tax_rate: string;
+  tax_mode: 'exclusive' | 'inclusive';
+  tax_amount: string;
+  line_subtotal: string;
+  line_total: string;
+  notes: string | null;
+}
+
+export interface PosCartCustomer {
+  id: number;
+  customer_code: string;
+  name: string;
+  phone: string | null;
+  price_list_id: number | null;
+  customer_group_id: number | null;
+  credit_limit: string | null;
+  price_list?: { id: number; name: string; status?: string } | null;
+}
+
+export interface PosCart {
+  id: number;
+  company_id: number;
+  branch_id: number | null;
+  warehouse_id: number | null;
+  register_id: number | null;
+  user_id: number;
+  customer_id: number | null;
+  /** Recall code; only present while the cart is parked. */
+  number: string | null;
+  status: CartStatus;
+  label: string | null;
+  held_at: string | null;
+  currency: string;
+  notes: string | null;
+
+  subtotal: string;
+  item_discount_total: string;
+  /** The cashier's raw discount entry, kept separate from what it resolves to. */
+  discount_input: string;
+  discount_type: DiscountType;
+  discount_total: string;
+  tax_total: string;
+  /** Portion of tax_total already inside the quoted prices. */
+  tax_included_total: string;
+  other_charges: string;
+  rounding: string;
+  grand_total: string;
+
+  item_count?: number;
+  total_quantity?: string;
+  items: PosCartItem[];
+  customer?: PosCartCustomer | null;
+  register?: { id: number; code: string; name: string } | null;
+  cashier?: { id: number; name: string } | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+/** One product as the till grid renders it: price for this customer, stock here. */
+export interface PosProduct {
+  product_id: number;
+  name: string;
+  sku: string;
+  barcode: string | null;
+  product_type: ProductType | null;
+  image: string | null;
+  track_inventory: boolean;
+  allow_negative_stock: boolean;
+  unit: { id: number; name: string; code: string } | null;
+  category: { id: number; name: string } | null;
+  brand: { id: number; name: string } | null;
+  price: string;
+  price_source: PriceSource;
+  price_list_id: number | null;
+  catalogue_price: string;
+  stock: { on_hand: string; available: string; tracked: boolean; low: boolean };
+  variants: Array<{
+    id: number;
+    sku: string;
+    barcode: string | null;
+    name: string | null;
+    selling_price: string;
+    stock: { on_hand: string; available: string };
+  }>;
+  minimum_selling_price: string | null;
+}
+
+/** What a scan resolved to, plus the payload to post straight back to the cart. */
+export interface PosScanResult {
+  matched_code: string;
+  variant_id: number | null;
+  product: PosProduct;
+  add_to_cart: { product_id: number; product_variant_id?: number; quantity: string };
+}
+
+/** A parked cart in the recall queue. */
+export interface HeldCart {
+  id: number;
+  number: string | null;
+  label: string | null;
+  status: CartStatus;
+  held_at: string | null;
+  item_count: number;
+  total_quantity: string;
+  grand_total: string;
+  currency: string;
+  customer: { id: number; name: string; phone: string | null; customer_code: string } | null;
+  cashier: { id: number; name: string } | null;
+}
+
+export interface AddCartLinePayload {
+  product_id?: number;
+  product_variant_id?: number | null;
+  barcode?: string;
+  quantity?: string;
+  notes?: string | null;
+}
+
+/** The cart plus the line that was just written, as the add/update endpoints answer. */
+export interface PosCartLineResponse {
+  item: PosCartItem | null;
+  cart: PosCart;
 }

@@ -37,6 +37,10 @@ class NumberingService
         'stock_adjustment' => ['prefix' => 'ADJ', 'padding' => 6, 'reset' => SequenceResetPeriod::Yearly->value],
         'stock_opname' => ['prefix' => 'OPN', 'padding' => 6, 'reset' => SequenceResetPeriod::Yearly->value],
         'warehouse_transfer' => ['prefix' => 'TRF', 'padding' => 6, 'reset' => SequenceResetPeriod::Yearly->value],
+
+        // Phase 3 — a held cart's recall code. Numbered only on hold, so an
+        // abandoned till session never burns a number.
+        'pos_cart' => ['prefix' => 'PARK', 'padding' => 4, 'reset' => SequenceResetPeriod::Daily->value],
     ];
 
     public function __construct(private BusinessContext $context) {}

@@ -81,10 +81,16 @@ abstract class TestCase extends BaseTestCase
     /**
      * Auth headers plus the business-context headers consumed by the app.
      *
+     * The guard is dropped first: it caches whoever resolved first for the life
+     * of the test method, so a second user's headers would otherwise still be
+     * answered as the first one.
+     *
      * @return array<string, string>
      */
     protected function authHeaders(User $user, array $context = []): array
     {
+        $this->app['auth']->forgetGuards();
+
         return array_filter([
             'Authorization' => 'Bearer '.$user->createToken('test')->plainTextToken,
             'X-Company-Id' => (string) ($context['company_id'] ?? $this->company?->id ?? ''),

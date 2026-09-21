@@ -20,7 +20,6 @@ export interface NavGroup {
  * so the navigation architecture is discoverable without dead links.
  */
 const COMING_SOON = [
-  { label: 'POS Sales', icon: 'calculator-outline', to: '/pos' },
   { label: 'Accounting', icon: 'book-outline', to: '/accounting' },
 ] as const;
 
@@ -30,6 +29,12 @@ function buildGroups(): NavGroup[] {
       title: 'Overview',
       items: [
         { label: 'Dashboard', to: '/dashboard', icon: 'speedometer-outline' },
+        {
+          label: 'Point of Sale',
+          to: '/pos',
+          icon: 'calculator-outline',
+          permission: 'pos.view',
+        },
         {
           label: 'Inventory Overview',
           to: '/inventory/overview',

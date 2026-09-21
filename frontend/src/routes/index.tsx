@@ -60,6 +60,7 @@ const PurchasingReportsPage = lazy(
   () => import('@/features/reports/purchasing-reports-page')
 );
 const ProductAnalyticsPage = lazy(() => import('@/features/reports/product-analytics-page'));
+const PosTillPage = lazy(() => import('@/features/pos/pos-till-page'));
 
 function PageWrapper({ children }: { children: ReactNode }) {
   return (
@@ -329,6 +330,14 @@ export const routes: RouteObject[] = [
         element: (
           <PageWrapper>
             <PurchaseReturnsPage />
+          </PageWrapper>
+        ),
+      },
+      {
+        path: '/pos',
+        element: (
+          <PageWrapper>
+            <PosTillPage />
           </PageWrapper>
         ),
       },
