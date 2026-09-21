@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ErrorState, LoadingState } from '@/components/ui/state';
 import { CheckoutDialog } from '@/features/sales/checkout-dialog';
+import { ShiftBar } from '@/features/registers/shift-bar';
+import { useCurrentShift } from '@/features/registers/use-shift';
 import { CartPanel } from './cart-panel';
 import { ProductGrid } from './product-grid';
 import { CustomerFooterButton, CustomerPickerModal } from './customer-picker-modal';
@@ -44,6 +46,11 @@ export default function PosTillPage() {
 
   const till = usePosCart(can('pos.view'));
   const { cart } = till;
+
+  // Phase 3.4: the drawer this till's cash belongs to. Read alongside the cart so
+  // the bar and the totals on screen are the server's own two answers.
+  const maySeeShifts = can('register_sessions.view');
+  const shift = useCurrentShift(maySeeShifts);
 
   const [term, setTerm] = useState('');
   const [dialog, setDialog] = useState<Dialog>(null);
@@ -168,6 +175,16 @@ export default function PosTillPage() {
         locked={locked}
         registerId={registerId}
       />
+
+      {/* A cashier without register_sessions.view gets no bar: the drawer still
+          takes its cash, it is simply not this role's to read. */}
+      {maySeeShifts && (
+        <ShiftBar
+          shift={shift.data?.data ?? null}
+          loading={shift.isPending}
+          registerMissing={registerId === null}
+        />
+      )}
 
       <div className="flex min-h-0 flex-1 flex-col gap-2 lg:flex-row">
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-surface">

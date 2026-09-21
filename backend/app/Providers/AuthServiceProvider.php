@@ -7,6 +7,7 @@ use App\Models\AttributeValue;
 use App\Models\AuditLog;
 use App\Models\Branch;
 use App\Models\Brand;
+use App\Models\CashMovement;
 use App\Models\Category;
 use App\Models\Company;
 use App\Models\Customer;
@@ -23,6 +24,7 @@ use App\Models\PurchaseOrder;
 use App\Models\PurchaseRequest;
 use App\Models\PurchaseReturn;
 use App\Models\Register;
+use App\Models\RegisterSession;
 use App\Models\Role;
 use App\Models\Sale;
 use App\Models\StockAdjustment;
@@ -55,6 +57,7 @@ use App\Policies\PurchaseOrderPolicy;
 use App\Policies\PurchaseRequestPolicy;
 use App\Policies\PurchaseReturnPolicy;
 use App\Policies\RegisterPolicy;
+use App\Policies\RegisterSessionPolicy;
 use App\Policies\RolePolicy;
 use App\Policies\SalePolicy;
 use App\Policies\StockAdjustmentPolicy;
@@ -102,6 +105,10 @@ class AuthServiceProvider extends ServiceProvider
         PurchaseReturn::class => PurchaseReturnPolicy::class,
         PosCart::class => PosCartPolicy::class,
         PaymentMethod::class => PaymentMethodPolicy::class,
+        RegisterSession::class => RegisterSessionPolicy::class,
+        // A cash movement is judged by the shift it belongs to, so it shares that
+        // shift's policy rather than carrying a second copy of the same six verbs.
+        CashMovement::class => RegisterSessionPolicy::class,
         Sale::class => SalePolicy::class,
     ];
 

@@ -15,6 +15,8 @@ const CompaniesPage = lazy(() => import('@/features/companies/companies-page'));
 const BranchesPage = lazy(() => import('@/features/branches/branches-page'));
 const WarehousesPage = lazy(() => import('@/features/warehouses/warehouses-page'));
 const RegistersPage = lazy(() => import('@/features/registers/registers-page'));
+const ShiftsPage = lazy(() => import('@/features/registers/shifts-page'));
+const ShiftDetailPage = lazy(() => import('@/features/registers/shift-detail-page'));
 const UsersPage = lazy(() => import('@/features/users/users-page'));
 const RolesPage = lazy(() => import('@/features/roles/roles-page'));
 const AuditLogsPage = lazy(() => import('@/features/audit/audit-logs-page'));
@@ -167,6 +169,23 @@ export const routes: RouteObject[] = [
         element: (
           <PageWrapper>
             <RegistersPage />
+          </PageWrapper>
+        ),
+      },
+      {
+        // Phase 3.4 — the drawer's own history, and the queue a variance goes to.
+        path: '/registers/shifts',
+        element: (
+          <PageWrapper>
+            <ShiftsPage />
+          </PageWrapper>
+        ),
+      },
+      {
+        path: '/registers/shifts/:id',
+        element: (
+          <PageWrapper>
+            <ShiftDetailPage />
           </PageWrapper>
         ),
       },

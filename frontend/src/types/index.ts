@@ -236,6 +236,9 @@ export interface ListParams {
   /** Payment methods (3.3): filter by channel, or hide the retired ones. */
   channel?: string;
   active_only?: string;
+  /** Register sessions (3.4): whose shift, and whether it is still awaiting a signature. */
+  cashier_id?: number;
+  awaiting_approval?: string;
 }
 
 /* ------------------------- Phase 2: Catalog master ------------------------- */
@@ -1452,6 +1455,8 @@ export interface Sale {
   branch?: { id: number; name: string; code: string | null; address: string | null } | null;
   warehouse?: { id: number; code: string; name: string } | null;
   register?: { id: number; code: string; name: string } | null;
+  /** Which drawer the ticket's cash belongs to; null when billed outside a shift. */
+  register_session_id?: number | null;
   cashier?: { id: number | null; name: string | null } | null;
 
   created_at?: string | null;
@@ -1470,5 +1475,206 @@ export interface SaleReceipt {
   width: ReceiptWidth;
   sale: Sale;
   html: string;
+}
+
+/* ------------------------- Phase 3.4: Cash register ------------------------- */
+
+/**
+ * Where a shift has got to along Open → Active → Transactions → Close.
+ *
+ * Only two, because waiting on a variance signature is a flag rather than a state:
+ * the cashier counted the drawer, handed the money over and went home, so the shift
+ * is closed whether or not a manager has agreed with the count yet.
+ */
+export type RegisterSessionStatus = 'open' | 'closed';
+
+/**
+ * Why cash moved through a drawer without being a tender.
+ *
+ * The six are the whole vocabulary — a till offers no free-text direction, and the
+ * backend rejects anything else. `refund` is its own group rather than a cash-out
+ * because it is the money the shift report subtracts separately from cash sales.
+ */
+export type CashMovementType =
+  | 'cash_injection'
+  | 'other_income'
+  | 'expense'
+  | 'withdrawal'
+  | 'petty_cash'
+  | 'refund';
+
+/** Which side of the expected-cash formula a reason sits on. */
+export type CashMovementGroup = 'in' | 'out' | 'refund';
+
+/**
+ * The figures a shift is currently at, recomputed on every read.
+ *
+ * Nothing here is stored (except the count the close left behind): expected cash is
+ * `Opening + Cash sales + Cash in − Cash refunds − Cash out` every time it is asked
+ * for, which is the only way the till, the close and the report can be guaranteed to
+ * say the same number. `actual_balance` and `variance` are null until someone counts.
+ */
+export interface RegisterSessionSummary {
+  opening_balance: string;
+  cash_sales: string;
+  non_cash_sales: string;
+  cash_in: string;
+  cash_out: string;
+  cash_refunds: string;
+  expected_cash: string;
+  actual_balance: string | null;
+  variance: string | null;
+  sales_count: string;
+  tender_count: string;
+  movement_count: string;
+  /** Cash taken on this register that belongs to no shift — reported beside the count. */
+  unattributed_cash: string;
+  unattributed_count: string;
+}
+
+/**
+ * A register session: one drawer, opened by one cashier, counted once (or twice,
+ * after a reopen).
+ *
+ * `summary` is present on the single-shift endpoints and null on the list — the
+ * list shows what a shift was counted at, which is stored on the row, rather than
+ * running a handful of aggregates per row.
+ */
+export interface RegisterSession {
+  id: number;
+  company_id: number;
+  branch_id: number | null;
+  register_id: number;
+  warehouse_id: number | null;
+  number: string;
+  status: RegisterSessionStatus;
+  status_label: string;
+
+  cashier_id: number;
+  cashier?: { id: number; name: string } | null;
+  register_code?: string | null;
+  register_name?: string | null;
+  branch_name?: string | null;
+
+  opening_balance: string;
+  opened_at: string | null;
+  opened_by?: string | null;
+
+  closed_at: string | null;
+  closed_by?: string | null;
+  /** The expected cash the count was measured against, stored at close. */
+  closing_balance: string | null;
+  actual_balance: string | null;
+  variance: string | null;
+  variance_threshold: string | null;
+
+  requires_approval: boolean;
+  is_approved: boolean;
+  /** Closed, over tolerance, unsigned — the queue a manager works through. */
+  awaiting_approval: boolean;
+  approved_by?: string | null;
+  approved_at: string | null;
+  approval_note: string | null;
+
+  reopen_count: number;
+  reopen_reason: string | null;
+  reopened_at: string | null;
+  reopened_by?: string | null;
+
+  notes: string | null;
+  duration_minutes: number | null;
+
+  summary: RegisterSessionSummary | null;
+  expected_cash: string | null;
+  unattributed_cash: string | null;
+  unattributed_count: string | null;
+  movement_count: string | null;
+  tender_count: string | null;
+  sales_count: string | null;
+
+  movements?: CashMovement[];
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+/**
+ * One movement of cash that was not a tender.
+ *
+ * `group`, `direction` and `signed_amount` are read off the type rather than
+ * stored, so a row can be coloured and filed without the client knowing the six
+ * reasons — and a seventh cannot arrive disagreeing with its own sign.
+ */
+export interface CashMovement {
+  id: number;
+  company_id: number;
+  register_session_id: number;
+  register_id: number;
+  shift_number?: string | null;
+  type: CashMovementType;
+  type_label: string;
+  group: CashMovementGroup;
+  direction: 'in' | 'out';
+  amount: string;
+  signed_amount: string;
+  currency: string;
+  reason: string;
+  reference: string | null;
+  occurred_at: string;
+  notes: string | null;
+  user?: { id: number; name: string } | null;
+  created_at?: string | null;
+}
+
+export interface CashMovementInput {
+  type: CashMovementType;
+  amount: string;
+  reason: string;
+  reference?: string | null;
+  occurred_at?: string;
+  notes?: string | null;
+}
+
+export interface OpenRegisterPayload {
+  register_id?: number;
+  cashier_id?: number;
+  opening_balance: string;
+  opened_at?: string;
+  notes?: string | null;
+}
+
+export interface CloseRegisterPayload {
+  actual_balance: string;
+  closed_at?: string;
+  notes?: string | null;
+}
+
+/** A drawer the shop owns, with the shift open on it right now, if any. */
+export interface RegisterWithSession {
+  id: number;
+  code: string;
+  name: string;
+  branch_id: number | null;
+  branch_name: string | null;
+  open_session: {
+    id: number;
+    number: string;
+    cashier: string | null;
+    opened_at: string | null;
+  } | null;
+}
+
+/** One line of the closing report: the eight figures, in the order they are read. */
+export interface ShiftReportLine {
+  key: string;
+  label: string;
+  /** Decimal string, or null before the drawer has been counted. */
+  value: string | null;
+  emphasis?: boolean;
+}
+
+export interface ShiftReport {
+  shift: RegisterSession;
+  currency: string;
+  report: ShiftReportLine[];
 }
 

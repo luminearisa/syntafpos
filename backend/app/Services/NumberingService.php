@@ -41,6 +41,10 @@ class NumberingService
         // Phase 3 — a held cart's recall code. Numbered only on hold, so an
         // abandoned till session never burns a number.
         'pos_cart' => ['prefix' => 'PARK', 'padding' => 4, 'reset' => SequenceResetPeriod::Daily->value],
+
+        // A shift is a document a manager signs and files, so it is numbered on
+        // open rather than derived from its register and time.
+        'shift' => ['prefix' => 'SHIFT', 'padding' => 4, 'reset' => SequenceResetPeriod::Yearly->value],
     ];
 
     public function __construct(private BusinessContext $context) {}

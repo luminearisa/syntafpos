@@ -56,6 +56,7 @@ class SaleService
         private InventoryService $inventory,
         private NumberingService $numbering,
         private PaymentService $payments,
+        private RegisterSessionService $shifts,
         private SettingsService $settings,
         private AuditService $audit,
     ) {}
@@ -79,6 +80,13 @@ class SaleService
 
         $payments = $this->normalisePayments($input['payments'] ?? []);
         $warehouse = $this->resolveWarehouse($cart);
+
+        // Gated here and not in the payment engine: a shop that insists on an open
+        // drawer means it as a rule about *starting* business on a register.
+        // Settling an existing ticket is deliberately not gated — a customer with a
+        // half-paid bill and a closed register is a worse outcome for the shop than
+        // a tender recorded against the shift that raised the ticket.
+        $this->shifts->guardCheckoutAllowed((int) $cart->company_id, $cart->register_id);
 
         return DB::transaction(function () use ($cart, $user, $input, $payments, $warehouse) {
             $sale = $this->raiseFromCart($cart, $user, $input, $warehouse);
@@ -321,6 +329,14 @@ class SaleService
             'branch_phone' => $cart->branch?->phone,
             'register_code' => $cart->register?->code,
         ]);
+
+        // The shift this ticket's cash belongs to, resolved once here so every
+        // tender taken against the sale inherits it rather than looking the
+        // register up again. Null is legitimate: see
+        // RegisterSessionService::currentFor.
+        $sale->forceFill([
+            'register_session_id' => $this->shifts->currentFor($cart->register_id, $cart->company_id)?->id,
+        ])->save();
 
         foreach ($cart->items as $item) {
             $sale->items()->create([

@@ -37,6 +37,13 @@ import type {
   PurchaseReturn,
   ReceiptWidth,
   Register,
+  CashMovement,
+  CashMovementInput,
+  CloseRegisterPayload,
+  OpenRegisterPayload,
+  RegisterSession,
+  RegisterWithSession,
+  ShiftReport,
   ReportRow,
   CheckoutPayload,
   Role,
@@ -901,4 +908,81 @@ export const paymentMethodApi = {
 
   remove: (id: number) =>
     request<null>({ method: 'DELETE', url: `/payment-methods/${id}` }),
+};
+
+/**
+ * Register sessions (Phase 3.4): the shift a drawer lives through.
+ *
+ * The client mirrors the backend's shape — a lifecycle, not a resource. There is no
+ * update and no delete anywhere here, because a counted shift is not a row someone
+ * edits: the correction it accepts is a reopen and a second count, which keeps the
+ * first count on the record. That is what makes a variance mean something.
+ *
+ * `current` is the till's own question ("what is open on this register?"), and it
+ * answers `null` rather than 404 when nothing is — a till has to be able to tell
+ * "nobody has opened yet" apart from "not allowed". `open_session` on `registers`
+ * is the same answer for every drawer at once, so a shift can be started without
+ * guessing ids.
+ */
+export const registerSessionApi = {
+  list: (params: ListParams = {}) =>
+    request<RegisterSession[]>({ method: 'GET', url: '/register-sessions', params }),
+
+  show: (id: number) =>
+    request<RegisterSession>({ method: 'GET', url: `/register-sessions/${id}` }),
+
+  current: (register_id?: number) =>
+    request<RegisterSession | null>({
+      method: 'GET',
+      url: '/register-sessions/current',
+      params: register_id ? { register_id } : undefined,
+    }),
+
+  registers: () =>
+    request<RegisterWithSession[]>({ method: 'GET', url: '/register-sessions/registers' }),
+
+  /** Open a drawer with float. The register and cashier default to the app's context. */
+  open: (data: OpenRegisterPayload) =>
+    request<RegisterSession>({ method: 'POST', url: '/register-sessions', data }),
+
+  /** Count the drawer. Expected cash and variance are the server's, never sent. */
+  close: (id: number, data: CloseRegisterPayload) =>
+    request<RegisterSession>({
+      method: 'POST',
+      url: `/register-sessions/${id}/close`,
+      data,
+    }),
+
+  approve: (id: number, note?: string | null) =>
+    request<RegisterSession>({
+      method: 'POST',
+      url: `/register-sessions/${id}/approve`,
+      data: { note: note ?? null },
+    }),
+
+  /** A reopen needs a reason: it is the one action on a shift someone must be answerable for. */
+  reopen: (id: number, reason: string) =>
+    request<RegisterSession>({
+      method: 'POST',
+      url: `/register-sessions/${id}/reopen`,
+      data: { reason },
+    }),
+
+  report: (id: number) =>
+    request<ShiftReport>({ method: 'GET', url: `/register-sessions/${id}/report` }),
+
+  movements: (id: number, params: ListParams = {}) =>
+    request<CashMovement[]>({
+      method: 'GET',
+      url: `/register-sessions/${id}/movements`,
+      params,
+    }),
+
+  /** Cash in, cash out. Every movement carries a reason and the user who recorded it. */
+  addMovement: (id: number, data: CashMovementInput) =>
+    request<CashMovement>({
+      method: 'POST',
+      url: `/register-sessions/${id}/movements`,
+      data,
+    }),
 };

@@ -37,7 +37,8 @@ class SalePayment extends Model
     use HasFactory;
 
     protected $fillable = [
-        'sale_id', 'company_id', 'register_id', 'received_by', 'payment_method_id',
+        'sale_id', 'company_id', 'register_id', 'register_session_id', 'received_by',
+        'payment_method_id',
         'number', 'channel', 'method_name', 'amount', 'currency',
         'tendered', 'change', 'reference', 'notes', 'metadata',
     ];

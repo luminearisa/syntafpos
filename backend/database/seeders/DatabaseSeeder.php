@@ -140,6 +140,12 @@ class DatabaseSeeder extends Seeder
             'pos.auto_print' => ['value' => '1', 'type' => 'boolean', 'group' => 'pos'],
             'pos.allow_negative_stock' => ['value' => '0', 'type' => 'boolean', 'group' => 'pos'],
 
+            // Off, and zero: a shop that has never heard of shift reconciliation
+            // must still be able to sell, and a tolerance of nothing is the honest
+            // default for a setting nobody has chosen yet.
+            'registers.require_open_shift' => ['value' => '0', 'type' => 'boolean', 'group' => 'registers'],
+            'registers.variance_threshold' => ['value' => '0', 'type' => 'decimal', 'group' => 'registers'],
+
             'inventory.enabled' => ['value' => '1', 'type' => 'boolean', 'group' => 'inventory'],
             'inventory.valuation_method' => ['value' => 'average', 'type' => 'string', 'group' => 'inventory'],
 

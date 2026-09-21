@@ -29,6 +29,10 @@ class SaleResource extends JsonResource
             'branch_id' => $this->branch_id,
             'warehouse_id' => $this->warehouse_id,
             'register_id' => $this->register_id,
+            // Which drawer the ticket's cash belongs to, and therefore which shift's
+            // report it appears on. Null when it was billed outside any shift, which
+            // the shift report then shows as cash it cannot account for.
+            'register_session_id' => $this->register_session_id,
             'customer_id' => $this->customer_id,
             'cashier_id' => $this->cashier_id,
             'pos_cart_id' => $this->pos_cart_id,

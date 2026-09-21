@@ -58,6 +58,9 @@ export default function SaleDetailPage() {
     onSuccess: (response) => {
       client.invalidateQueries({ queryKey: ['sales', saleId, 'detail'] });
       client.invalidateQueries({ queryKey: listQueryKeys.sales });
+      // Voiding a ticket voids its tenders, so any shift that was holding that
+      // cash is short by exactly what this one took.
+      client.invalidateQueries({ queryKey: ['register-sessions'] });
       setCancelling(false);
       setReason('');
       toast({

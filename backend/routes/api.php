@@ -168,6 +168,10 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         // falls back on before anyone has configured them.
         require __DIR__.'/payment-methods.php';
 
+        // Phase 3.4 — the drawer those payments land in: shifts, cash in and out,
+        // the count at close, and the signature a variance needs.
+        require __DIR__.'/register-sessions.php';
+
         Route::prefix('settings')->group(function () {
             Route::get('/', [SettingsController::class, 'index'])->name('settings.index');
             Route::get('{key}', [SettingsController::class, 'show'])->name('settings.show');

@@ -77,6 +77,9 @@ function SettleForm({ sale, onClose }: { sale: Sale; onClose: () => void }) {
 
       client.invalidateQueries({ queryKey: ['sales', response.data.id, 'detail'] });
       client.invalidateQueries({ queryKey: listQueryKeys.sales });
+      // A tender taken after the sale is still cash into the drawer it belongs to,
+      // so the shift's expected figure has to be re-read with it.
+      client.invalidateQueries({ queryKey: ['register-sessions'] });
 
       toast({
         variant: settled ? 'success' : 'warning',

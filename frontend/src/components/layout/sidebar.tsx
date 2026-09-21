@@ -52,6 +52,12 @@ function buildGroups(): NavGroup[] {
           icon: 'receipt-outline',
           permission: 'sales.view',
         },
+        {
+          label: 'Register Shifts',
+          to: '/registers/shifts',
+          icon: 'cash-outline',
+          permission: 'register_sessions.view',
+        },
       ],
     },
     {

@@ -682,6 +682,11 @@ class PaymentService
             'sale_id' => $sale->id,
             'company_id' => $sale->company_id,
             'register_id' => $sale->register_id,
+            // The tender belongs to whichever shift the ticket was raised on, not
+            // to whatever the register happens to be working now: paying a Pending
+            // Payment sale down after a close must not move yesterday's cash into
+            // today's drawer. Null on a sale raised outside a till.
+            'register_session_id' => $sale->register_session_id,
             'received_by' => $user->id,
             'payment_method_id' => $method instanceof PaymentMethod ? $method->id : null,
             'number' => $this->numbering->next('payment', $sale->company_id),

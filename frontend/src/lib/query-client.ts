@@ -73,4 +73,7 @@ export const listQueryKeys = {
 
   // Phase 3.3 payments: the admin list and the till's copy of it.
   paymentMethods: ['payment-methods'] as const,
+
+  // Phase 3.4 cash register: shifts, and the drawers they can be opened on.
+  registerSessions: ['register-sessions'] as const,
 };

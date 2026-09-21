@@ -62,6 +62,19 @@ final class PermissionCatalogue
                 'payment_methods.view', 'payment_methods.create',
                 'payment_methods.update', 'payment_methods.delete',
             ],
+            // The drawer's own lifecycle, kept apart from both the till that sells
+            // through it and the sale records it produces: opening a register,
+            // moving cash in and out of it, and closing it against a count are not
+            // the same authorities as ringing up a ticket. `approve` and `reopen`
+            // are deliberately absent from a cashier's set — the work order puts
+            // variance sign-off and re-counting with a manager, and a permission
+            // that a cashier holds cannot gate a conversation about their own
+            // shortage.
+            'register_sessions' => [
+                'register_sessions.view', 'register_sessions.open',
+                'register_sessions.process', 'register_sessions.close',
+                'register_sessions.approve', 'register_sessions.reopen',
+            ],
         ];
     }
 
@@ -95,6 +108,10 @@ final class PermissionCatalogue
                     'branches', 'warehouses', 'registers', 'users', 'roles',
                     'products', 'categories', 'brands', 'units', 'customers', 'suppliers',
                     'sales',
+                    // All six verbs, including approve and reopen: the work order
+                    // puts variance sign-off and re-counting with a manager, and a
+                    // manager who cannot open a drawer cannot see what is in one.
+                    'register_sessions',
                 ])
                 ->flatten()
                 ->push('settings.view')
@@ -118,6 +135,11 @@ final class PermissionCatalogue
                 // A cashier raises and settles the ticket; taking one back is a
                 // supervisor's call, so sales.cancel is deliberately absent.
                 'sales.view', 'sales.create', 'sales.complete',
+                // The work order's cashier set: open, process, close. Not approve —
+                // a signature on one's own shortage is not a control — and not
+                // reopen, which is the same conversation from the other end.
+                'register_sessions.view', 'register_sessions.open',
+                'register_sessions.process', 'register_sessions.close',
             ],
 
             'warehouse' => collect(self::groups())
@@ -131,8 +153,11 @@ final class PermissionCatalogue
                 ->all(),
 
             'finance' => collect(self::groups())
-                ->only(['suppliers', 'taxes', 'sales', 'payment_methods'])
+                ->only(['suppliers', 'taxes', 'sales', 'payment_methods', 'register_sessions'])
                 ->flatten()
+                // Back-office money, including signing off a drawer it did not
+                // count — but not opening or closing one, which is floor work.
+                ->reject(fn (string $name) => str_ends_with($name, '.open') || str_ends_with($name, '.process') || str_ends_with($name, '.close'))
                 ->push('settings.view')
                 ->push('purchases.view', 'purchases.approve')
                 ->push('reports.purchasing', 'reports.inventory')
@@ -143,6 +168,7 @@ final class PermissionCatalogue
                 ->only([
                     'companies', 'branches', 'warehouses', 'registers', 'users',
                     'products', 'categories', 'brands', 'units', 'customers', 'suppliers',
+                    'register_sessions',
                 ])
                 ->map(fn (array $permissions) => collect($permissions)->filter(
                     fn (string $name) => str_ends_with($name, '.view')
@@ -216,6 +242,12 @@ final class PermissionCatalogue
             'payment_methods.delete' => 'Delete payment methods',
             'payment_methods.update' => 'Update payment methods',
             'payment_methods.view' => 'View payment methods',
+            'register_sessions.approve' => 'Approve shift variance',
+            'register_sessions.close' => 'Close a register shift',
+            'register_sessions.open' => 'Open a register shift',
+            'register_sessions.process' => 'Record cash in and out on a shift',
+            'register_sessions.reopen' => 'Reopen a closed shift',
+            'register_sessions.view' => 'View register shifts',
             'registers.create' => 'Create registers',
             'registers.delete' => 'Delete registers',
             'registers.update' => 'Update registers',

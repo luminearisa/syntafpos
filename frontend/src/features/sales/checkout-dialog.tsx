@@ -113,6 +113,10 @@ function CheckoutForm({
       // The cart is consumed by the sale, so the till must not keep showing it:
       // refetching re-opens an empty working cart for the next customer.
       client.invalidateQueries({ queryKey: CART_QUERY_KEY });
+      // A cash tender is now money in a drawer, so the shift bar's expected cash
+      // is stale the moment a sale posts. Phase 3.4's figures are always recomputed
+      // server-side, so this is a refresh rather than a local adjustment.
+      client.invalidateQueries({ queryKey: ['register-sessions'] });
     },
     onError: (error) => {
       toast({
