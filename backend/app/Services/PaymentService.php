@@ -401,6 +401,107 @@ class PaymentService
     }
 
     /**
+     * Give part or all of a settled tender back, without touching the sale's
+     * stock or status.
+     *
+     * This is the write that makes a refund real. The row it belongs to is the
+     * record of *why*; this method is the record of *what*, and it is the only
+     * place `refunded_amount` on a payment moves. Writing the figure down here
+     * rather than in the refund service keeps the single-writer rule that has held
+     * since 3.3: nothing else may make a tender worth less than it was.
+     *
+     * A tender can only be written down while it is money the shop holds — Paid
+     * or Partially Refunded. A Pending, Failed, Cancelled or already fully
+     * Refunded tender has nothing to give back, and refusing here is what stops a
+     * refund from being applied twice after a retry.
+     */
+    public function refund(SalePayment $payment, string $amount, User $user, ?string $reason = null, ?int $refundId = null): SalePayment
+    {
+        $amount = DecimalMath::add(trim($amount), '0');
+
+        if (bccomp($amount, '0', 4) <= 0) {
+            throw ValidationException::withMessages([
+                'refund.amount' => 'A refund must be more than zero.',
+            ]);
+        }
+
+        return DB::transaction(function () use ($payment, $amount, $user, $reason, $refundId) {
+            $locked = SalePayment::query()->whereKey($payment->id)->lockForUpdate()->firstOrFail();
+            $current = $locked->status ?? PaymentStatus::Pending;
+
+            if (! $current->countsTowardPaid()) {
+                throw ValidationException::withMessages([
+                    'refund.amount' => sprintf(
+                        'Payment %s is %s and has no settled money left to refund.',
+                        $locked->number,
+                        $current->label()
+                    ),
+                ]);
+            }
+
+            $refundable = $locked->netAmount();
+
+            if (bccomp($amount, $refundable, 4) > 0) {
+                throw ValidationException::withMessages([
+                    'refund.amount' => sprintf(
+                        'That refund is larger than the %s still refundable on payment %s.',
+                        MoneyFormat::format($refundable, $this->currencyFor($locked->sale()->firstOrFail())),
+                        $locked->number
+                    ),
+                ]);
+            }
+
+            $refunded = DecimalMath::add((string) $locked->refunded_amount, $amount);
+            $previousRefunded = (string) $locked->refunded_amount;
+            $target = bccomp($refunded, (string) $locked->amount, 4) >= 0
+                ? PaymentStatus::Refunded
+                : PaymentStatus::PartiallyRefunded;
+
+            if ($target !== $current && ! $current->canTransitionTo($target)) {
+                throw ValidationException::withMessages([
+                    'refund.amount' => sprintf(
+                        'A payment cannot go from %s to %s.',
+                        $current->label(),
+                        $target->label()
+                    ),
+                ]);
+            }
+
+            $metadata = $locked->metadata ?? [];
+
+            if ($refundId !== null) {
+                $metadata['refunds'] = array_values(array_unique(
+                    array_merge($metadata['refunds'] ?? [], [$refundId])
+                ));
+            }
+
+            if ($reason !== null && $reason !== '') {
+                $metadata['refund_reason'] = $reason;
+            }
+
+            $locked->forceFill([
+                'refunded_amount' => $refunded,
+                'status' => $target,
+                'metadata' => $metadata === [] ? null : $metadata,
+            ])->save();
+
+            $sale = $this->recalculate($locked->sale()->firstOrFail(), $user);
+
+            $this->audit->record('payment.refund', 'sale_payment', $locked->id, [
+                'refunded_amount' => $previousRefunded,
+                'status' => $current->value,
+            ], [
+                'refunded_amount' => $refunded,
+                'status' => $target->value,
+                'amount' => $amount,
+                'reason' => $reason,
+            ], $locked->company_id, $user->id);
+
+            return $locked->fresh();
+        });
+    }
+
+    /**
      * Lock the sale and prove it can still receive money.
      *
      * A Completed sale is refused because closing a ticket is the statement that
@@ -815,6 +916,15 @@ class PaymentService
     {
         if ($sale->status === SaleStatus::Cancelled) {
             return SaleStatus::Cancelled;
+        }
+
+        // A completed ticket stays completed when money is refunded off it. The
+        // goods left and the sale settled; a refund is a second document against
+        // that fact, not a reason to reopen the ticket and re-post its stock. The
+        // money it gave back is read from `refunded_amount` on the tenders and
+        // from the refund rows, and the receipt still says the sale was paid.
+        if ($sale->status === SaleStatus::Completed) {
+            return SaleStatus::Completed;
         }
 
         if (bccomp($balance, '0', 4) > 0) {

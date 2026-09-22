@@ -50,7 +50,11 @@ import type {
   Sale,
   SalePaymentInput,
   SaleReceipt,
+  SaleReturn,
   SettingsResponse,
+  Refund,
+  StoreRefundPayload,
+  StoreSaleReturnPayload,
   StockAdjustment,
   StockCardRow,
   StockMovement,
@@ -870,12 +874,98 @@ export const saleApi = {
   cancel: (id: number, reason: string | null) =>
     request<Sale>({ method: 'POST', url: `/sales/${id}/cancel`, data: { reason } }),
 
+  /**
+   * Void an open ticket with a reason (Phase 3.5).
+   *
+   * Kept apart from `cancel` because the work order tells two stories: a cancel
+   * is a cashier withdrawing an abandoned ticket, a void is a gated withdrawal
+   * that must say why and is audited as `sale.void`.
+   */
+  void: (id: number, reason: string) =>
+    request<Sale>({ method: 'POST', url: `/sales/${id}/void`, data: { reason } }),
+
+  /** The returns already raised against this sale. */
+  returns: (id: number) =>
+    request<SaleReturn[]>({ method: 'GET', url: `/sales/${id}/returns` }),
+
+  /** Receive goods back against this sale; stock is posted in the same breath. */
+  raiseReturn: (id: number, data: StoreSaleReturnPayload) =>
+    request<SaleReturn>({ method: 'POST', url: `/sales/${id}/returns`, data }),
+
+  /** The refunds already raised against this sale. */
+  refunds: (id: number) =>
+    request<Refund[]>({ method: 'GET', url: `/sales/${id}/refunds` }),
+
+  /** Raise a refund; the shop's threshold decides whether it waits for a signature. */
+  raiseRefund: (id: number, data: StoreRefundPayload) =>
+    request<Refund>({ method: 'POST', url: `/sales/${id}/refunds`, data }),
+
   /** The printable document, rendered by the server for one paper width. */
   receipt: (id: number, width: ReceiptWidth = '80') =>
     request<SaleReceipt>({
       method: 'GET',
       url: `/sales/${id}/receipt`,
       params: { width },
+    }),
+};
+
+/**
+ * Sales returns (Phase 3.5): the slips that record goods coming back.
+ *
+ * Read-only from the client: a return is created against its sale, and a wrong
+ * one is corrected by posting another rather than by editing or deleting. The
+ * list is what a reconciliation reads; the sale page is where one is raised.
+ */
+export const saleReturnApi = {
+  list: (params: ListParams = {}) =>
+    request<SaleReturn[]>({ method: 'GET', url: '/returns', params }),
+
+  show: (id: number) => request<SaleReturn>({ method: 'GET', url: `/returns/${id}` }),
+};
+
+/**
+ * Refunds (Phase 3.5): money going back, and who signed for it.
+ *
+ * Each transition past creation is its own endpoint because each is a decision
+ * with a name on it. Nothing here edits a refund: a wrong one is failed and
+ * raised again, which is what keeps the tenders it wrote down trustworthy.
+ */
+export const refundApi = {
+  list: (params: ListParams = {}) =>
+    request<Refund[]>({ method: 'GET', url: '/refunds', params }),
+
+  show: (id: number) => request<Refund>({ method: 'GET', url: `/refunds/${id}` }),
+
+  /** Sign off a refund the threshold referred, with an optional note. */
+  approve: (id: number, note?: string) =>
+    request<Refund>({
+      method: 'POST',
+      url: `/refunds/${id}/approve`,
+      data: { note: note?.trim() ? note.trim() : null },
+    }),
+
+  /** Refuse one before anything moved. The reason is mandatory. */
+  reject: (id: number, reason: string) =>
+    request<Refund>({ method: 'POST', url: `/refunds/${id}/reject`, data: { reason } }),
+
+  /** Hand it to the payout. */
+  process: (id: number) =>
+    request<Refund>({ method: 'POST', url: `/refunds/${id}/process` }),
+
+  /** Pay it out: the step that writes the sale's tenders down. */
+  complete: (id: number, externalReference?: string) =>
+    request<Refund>({
+      method: 'POST',
+      url: `/refunds/${id}/complete`,
+      data: { external_reference: externalReference?.trim() ? externalReference.trim() : null },
+    }),
+
+  /** Record a payout that could not happen. */
+  fail: (id: number, reason?: string) =>
+    request<Refund>({
+      method: 'POST',
+      url: `/refunds/${id}/fail`,
+      data: { reason: reason?.trim() ? reason.trim() : null },
     }),
 };
 

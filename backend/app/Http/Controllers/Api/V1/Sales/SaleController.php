@@ -6,6 +6,7 @@ use App\Enums\SaleStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Pos\CheckoutSaleRequest;
 use App\Http\Requests\Pos\CompleteSaleRequest;
+use App\Http\Requests\Sales\VoidSaleRequest;
 use App\Http\Resources\SaleResource;
 use App\Models\PosCart;
 use App\Models\Sale;
@@ -155,6 +156,24 @@ class SaleController extends Controller
     }
 
     /**
+     * Void an open transaction, with a mandatory reason.
+     *
+     * The formal counterpart to cancel: same reversal of stock and tenders, but
+     * gated by `sales.void`, requiring a reason, and refusing a sale that has
+     * already completed — which must be reversed with a return and a refund
+     * instead. Nothing is deleted; the sale keeps its rows and gains an audit
+     * entry naming who voided it, when and why.
+     */
+    public function void(VoidSaleRequest $request, Sale $sale): JsonResponse
+    {
+        $this->authorize('void', $sale);
+
+        $sale = $this->sales->void($sale, $request->user(), $request->validated());
+
+        return $this->success($this->present($sale), "Sale {$sale->number} voided.");
+    }
+
+    /**
      * The printable document.
      *
      * Returns the receipt's own data plus the rendered HTML for one of three
@@ -184,6 +203,10 @@ class SaleController extends Controller
         return (new SaleResource($sale->load([
             'items',
             'payments.receivedBy:id,name',
+            // Phase 3.5 — the goods returned and the money given back, so the
+            // invoice can show what has already been reversed against it.
+            'returns.items',
+            'refunds.allocations.payment',
             'company:id,name,code,legal_name,phone,address,city,province,country,postal_code,tax_number,currency',
             'register:id,code,name',
             'warehouse:id,code,name',

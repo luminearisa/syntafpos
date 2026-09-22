@@ -172,6 +172,10 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         // the count at close, and the signature a variance needs.
         require __DIR__.'/register-sessions.php';
 
+        // Phase 3.5 — the two documents that reverse a completed sale: goods
+        // coming back (returns) and money going out (refunds).
+        require __DIR__.'/returns.php';
+
         Route::prefix('settings')->group(function () {
             Route::get('/', [SettingsController::class, 'index'])->name('settings.index');
             Route::get('{key}', [SettingsController::class, 'show'])->name('settings.show');

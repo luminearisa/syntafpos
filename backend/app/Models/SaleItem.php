@@ -3,9 +3,13 @@
 namespace App\Models;
 
 use App\Enums\DiscountType;
+use App\Enums\SaleReturnStatus;
+use App\Support\DecimalMath;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * One line of a sale, frozen at checkout.
@@ -69,5 +73,40 @@ class SaleItem extends Model
     public function tax(): BelongsTo
     {
         return $this->belongsTo(Tax::class);
+    }
+
+    /**
+     * The return lines that reverse this sale line, across every posted return.
+     */
+    public function returns(): HasMany
+    {
+        return $this->hasMany(SaleReturnItem::class);
+    }
+
+    /**
+     * How much of this line has already been returned.
+     *
+     * Only completed returns count: a return that failed to post left no stock
+     * behind and must not reduce what the customer may bring back. The check is
+     * repeated inside SaleReturnService against locked rows — this is the figure
+     * a screen reads, not the one that decides.
+     */
+    public function returnedQuantity(): string
+    {
+        $returned = (string) $this->returns()
+            ->whereHas('saleReturn', fn (Builder $query) => $query->where('status', SaleReturnStatus::Completed->value))
+            ->sum('quantity');
+
+        return DecimalMath::add($returned, '0', 6);
+    }
+
+    /**
+     * How much of this line the customer may still bring back.
+     */
+    public function returnableQuantity(): string
+    {
+        $remaining = DecimalMath::sub((string) $this->quantity, $this->returnedQuantity(), 6);
+
+        return bccomp($remaining, '0', 6) < 0 ? '0.000000' : $remaining;
     }
 }

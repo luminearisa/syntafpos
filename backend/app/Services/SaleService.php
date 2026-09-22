@@ -202,7 +202,67 @@ class SaleService
 
         $reason = isset($input['reason']) ? trim((string) $input['reason']) : null;
 
-        return DB::transaction(function () use ($sale, $user, $reason) {
+        return $this->withdraw($sale, $user, $reason, 'sale.cancel');
+    }
+
+    /**
+     * Void a transaction that has not been completed, with a mandatory reason.
+     *
+     * Void is the formal name for withdrawing an *open* transaction — a ticket
+     * rung up by mistake, a sale stuck on Pending Payment, a duplicate the till
+     * produced. It writes nothing away: the sale's status becomes Cancelled, its
+     * stock goes back through the ledger and its tenders are withdrawn through the
+     * payment engine, while the rows themselves stay readable forever. The reason,
+     * the user and the time are recorded on the sale and as an audit entry.
+     *
+     * A **completed** sale is deliberately refused. Once goods have left and the
+     * money is the shop's, taking it back is not a cancellation but a return and a
+     * refund — two documents that record what came back and what was paid out.
+     * Voiding it would erase the completion and leave the refund unaccounted for,
+     * which is exactly the permanent-history loss this subphase exists to prevent.
+     */
+    public function void(Sale $sale, User $user, array $input = []): Sale
+    {
+        if ($sale->status === SaleStatus::Cancelled) {
+            throw ValidationException::withMessages([
+                'sale' => "Sale {$sale->number} is already cancelled.",
+            ]);
+        }
+
+        if ($sale->status === SaleStatus::Completed) {
+            throw ValidationException::withMessages([
+                'sale' => "Sale {$sale->number} is completed. Reverse it with a sales return and a refund rather than voiding it.",
+            ]);
+        }
+
+        $reason = trim((string) ($input['reason'] ?? ''));
+
+        if ($reason === '') {
+            throw ValidationException::withMessages([
+                'reason' => 'Voiding a transaction needs a reason.',
+            ]);
+        }
+
+        if (strlen($reason) > 500) {
+            throw ValidationException::withMessages([
+                'reason' => 'A void reason is at most 500 characters.',
+            ]);
+        }
+
+        return $this->withdraw($sale, $user, $reason, 'sale.void');
+    }
+
+    /**
+     * The shared reversal: stock back through the ledger, tenders withdrawn, the
+     * sale marked Cancelled with who, when and why.
+     *
+     * Extracted rather than copied because a cancellation and a void are the same
+     * physical act; the only difference is which door the cashier came through and
+     * whether the ticket had been completed.
+     */
+    private function withdraw(Sale $sale, User $user, ?string $reason, string $auditAction): Sale
+    {
+        return DB::transaction(function () use ($sale, $user, $reason, $auditAction) {
             $sale = Sale::query()->whereKey($sale->id)->lockForUpdate()->firstOrFail();
 
             if ($sale->status === SaleStatus::Cancelled) {
@@ -268,9 +328,7 @@ class SaleService
             }
 
             // paid_total is re-derived from the rows by the last cancel(), which is
-            // what takes it back to zero. The money itself is handed across the
-            // counter by the cancellation flow, not by this column: refunds are a
-            // later subphase, as the work order states.
+            // what takes it back to zero.
             $sale->refresh()->forceFill([
                 'status' => SaleStatus::Cancelled,
                 'cancelled_at' => now(),
@@ -278,7 +336,7 @@ class SaleService
                 'cancel_reason' => $reason,
             ])->save();
 
-            $this->audit->record('sale.cancel', 'sale', $sale->id, $before, [
+            $this->audit->record($auditAction, 'sale', $sale->id, $before, [
                 'status' => SaleStatus::Cancelled->value,
                 'reason' => $reason,
                 'stock_reversed' => $outgoing->count(),

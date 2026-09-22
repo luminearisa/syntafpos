@@ -23,10 +23,12 @@ use App\Models\ProductVariant;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseRequest;
 use App\Models\PurchaseReturn;
+use App\Models\Refund;
 use App\Models\Register;
 use App\Models\RegisterSession;
 use App\Models\Role;
 use App\Models\Sale;
+use App\Models\SaleReturn;
 use App\Models\StockAdjustment;
 use App\Models\StockOpname;
 use App\Models\Supplier;
@@ -56,10 +58,12 @@ use App\Policies\ProductVariantPolicy;
 use App\Policies\PurchaseOrderPolicy;
 use App\Policies\PurchaseRequestPolicy;
 use App\Policies\PurchaseReturnPolicy;
+use App\Policies\RefundPolicy;
 use App\Policies\RegisterPolicy;
 use App\Policies\RegisterSessionPolicy;
 use App\Policies\RolePolicy;
 use App\Policies\SalePolicy;
+use App\Policies\SaleReturnPolicy;
 use App\Policies\StockAdjustmentPolicy;
 use App\Policies\StockOpnamePolicy;
 use App\Policies\SupplierPolicy;
@@ -110,6 +114,8 @@ class AuthServiceProvider extends ServiceProvider
         // shift's policy rather than carrying a second copy of the same six verbs.
         CashMovement::class => RegisterSessionPolicy::class,
         Sale::class => SalePolicy::class,
+        SaleReturn::class => SaleReturnPolicy::class,
+        Refund::class => RefundPolicy::class,
     ];
 
     public function boot(): void

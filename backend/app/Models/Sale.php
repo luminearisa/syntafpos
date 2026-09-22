@@ -3,7 +3,9 @@
 namespace App\Models;
 
 use App\Enums\DiscountType;
+use App\Enums\SaleReturnStatus;
 use App\Enums\SaleStatus;
+use App\Support\DecimalMath;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -87,6 +89,16 @@ class Sale extends Model
         return $this->hasMany(SalePayment::class);
     }
 
+    public function returns(): HasMany
+    {
+        return $this->hasMany(SaleReturn::class);
+    }
+
+    public function refunds(): HasMany
+    {
+        return $this->hasMany(Refund::class);
+    }
+
     public function company(): BelongsTo
     {
         return $this->belongsTo(Company::class);
@@ -143,5 +155,58 @@ class Sale extends Model
     public function stockPosted(): bool
     {
         return $this->stock_posted_at !== null && $this->status !== SaleStatus::Cancelled;
+    }
+
+    /**
+     * What can still be refunded on this sale: the tenders that settled, net of
+     * everything already given back.
+     *
+     * Read off the payment rows rather than off `paid_total` so the two agree by
+     * construction — `paid_total` is itself summed through the same net figures.
+     * A fully refunded tender contributes nothing, which is what stops a second
+     * refund from overdrawing a payment the first one emptied.
+     */
+    public function refundableAmount(): string
+    {
+        $payments = $this->relationLoaded('payments')
+            ? $this->payments
+            : $this->payments()->get();
+
+        $total = '0';
+
+        foreach ($payments as $payment) {
+            $total = DecimalMath::add($total, $payment->netAmount());
+        }
+
+        return $total;
+    }
+
+    /**
+     * Everything already refunded against this sale's tenders.
+     */
+    public function refundedTotal(): string
+    {
+        $payments = $this->relationLoaded('payments')
+            ? $this->payments
+            : $this->payments()->get();
+
+        $total = '0';
+
+        foreach ($payments as $payment) {
+            $total = DecimalMath::add($total, (string) $payment->refunded_amount);
+        }
+
+        return $total;
+    }
+
+    /**
+     * The value of goods returned so far, across posted returns only. A draft
+     * return has not moved anything and must not be counted.
+     */
+    public function returnedTotal(): string
+    {
+        return (string) $this->returns()
+            ->where('status', SaleReturnStatus::Completed->value)
+            ->sum('grand_total');
     }
 }

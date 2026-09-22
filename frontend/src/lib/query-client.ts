@@ -76,4 +76,8 @@ export const listQueryKeys = {
 
   // Phase 3.4 cash register: shifts, and the drawers they can be opened on.
   registerSessions: ['register-sessions'] as const,
+
+  // Phase 3.5 returns and refunds.
+  saleReturns: ['returns'] as const,
+  refunds: ['refunds'] as const,
 };

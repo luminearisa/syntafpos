@@ -58,6 +58,28 @@ class SalePolicy extends BusinessEntityPolicy
     }
 
     /**
+     * Void is the formal withdrawal of an *open* ticket with a reason. It shares
+     * cancel's shape but is its own permission so a shop can let supervisors void
+     * without letting them use the older cancel path, and vice versa.
+     */
+    public function void(User $user, mixed $model): bool
+    {
+        return $this->canAccessCompany($user, $this->companyIdOf($model))
+            && $this->can($user, 'void', $this->companyIdOf($model));
+    }
+
+    /**
+     * Authorises raising a return *against* this sale. The return itself is then
+     * judged by SaleReturnPolicy; here we only need the caller to hold
+     * `sales.return` for the sale's company.
+     */
+    public function returnSale(User $user, mixed $model): bool
+    {
+        return $this->canAccessCompany($user, $this->companyIdOf($model))
+            && $this->can($user, 'return', $this->companyIdOf($model));
+    }
+
+    /**
      * A sale cannot be edited or removed after it exists; the status machine is
      * the only way forward.
      */

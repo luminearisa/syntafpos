@@ -14,11 +14,16 @@ import { Card, CardBody, CardHeader } from '@/components/ui/card';
 import { ConfirmModal } from '@/components/ui/overlay';
 import { ErrorState, LoadingState, PageHeader } from '@/components/ui/state';
 import { useToast } from '@/components/ui/toast';
-import { moneyUnits } from './money-math';
+import { moneyUnits, subMoney } from './money-math';
 import { PrintButtons } from './print-buttons';
 import { useReceiptPrinter } from './print';
 import { SaleStatusBadge } from './sale-status-badge';
 import { SettleDialog } from './settle-dialog';
+import { RaiseRefundDialog } from '@/features/returns/raise-refund-dialog';
+import { RecordReturnDialog } from '@/features/returns/record-return-dialog';
+import { RefundActions } from '@/features/returns/refund-actions';
+import { VoidSaleDialog } from '@/features/returns/void-sale-dialog';
+import { RefundStatusBadge, SaleReturnStatusBadge } from '@/features/returns/status-badges';
 
 /**
  * The invoice itself (Phase 3.2).
@@ -41,6 +46,9 @@ export default function SaleDetailPage() {
   const can = useAuthStore((state) => state.can);
   const [settling, setSettling] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [voiding, setVoiding] = useState(false);
+  const [returning, setReturning] = useState(false);
+  const [refunding, setRefunding] = useState(false);
   const [reason, setReason] = useState('');
 
   const query = useQuery({
@@ -94,6 +102,15 @@ export default function SaleDetailPage() {
   const open = sale.status !== 'cancelled' && !sale.fully_paid;
   const mayCancel = can('sales.cancel') && sale.status !== 'cancelled';
   const maySettle = can('sales.complete') && open;
+  // Phase 3.5: goods back, money back and the gated withdrawal. A completed sale
+  // is reversed by a return and a refund, never by a void.
+  const remainingRefundable = subMoney(sale.refundable_amount, sale.refunded_total);
+  const mayReturn =
+    can('sales.return') && sale.status !== 'cancelled' && sale.stock_posted_at !== null;
+  const mayRefund = can('refunds.create') && moneyUnits(remainingRefundable) > 0;
+  const mayVoid = can('sales.void') && sale.status !== 'cancelled' && sale.status !== 'completed';
+  const returns = sale.returns ?? [];
+  const refunds = sale.refunds ?? [];
 
   return (
     <div className="flex flex-col gap-4">
@@ -106,6 +123,21 @@ export default function SaleDetailPage() {
             {maySettle && (
               <Button variant="primary" size="sm" icon="cash-outline" onClick={() => setSettling(true)}>
                 Take payment
+              </Button>
+            )}
+            {mayReturn && (
+              <Button variant="primary" size="sm" icon="return-down-back-outline" onClick={() => setReturning(true)}>
+                Record return
+              </Button>
+            )}
+            {mayRefund && (
+              <Button variant="secondary" size="sm" icon="cash-outline" onClick={() => setRefunding(true)}>
+                Refund
+              </Button>
+            )}
+            {mayVoid && (
+              <Button variant="outline" size="sm" icon="ban-outline" onClick={() => setVoiding(true)}>
+                Void sale
               </Button>
             )}
             {mayCancel && (
@@ -291,7 +323,114 @@ export default function SaleDetailPage() {
         </Card>
       </div>
 
+      {(returns.length > 0 || refunds.length > 0 || mayRefund) && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card>
+            <CardHeader
+              title="Returns"
+              description={
+                returns.length === 0
+                  ? 'No goods have come back against this sale.'
+                  : `${returns.length} slip(s) — stock posted back through the ledger.`
+              }
+            />
+            <CardBody className="flex flex-col gap-3 text-sm">
+              {returns.length === 0 ? (
+                <p className="text-xs text-text-muted">
+                  {mayReturn
+                    ? 'Record a return when a customer brings goods back.'
+                    : 'None yet.'}
+                </p>
+              ) : (
+                returns.map((entry) => (
+                  <div key={entry.id} className="flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 flex-col">
+                      <span className="font-mono text-xs text-text">{entry.number}</span>
+                      <span className="text-[11px] text-text-subtle">
+                        {formatDate(entry.return_date, true)} · {entry.returned_by_user?.name ?? '-'}
+                      </span>
+                      {entry.reason && (
+                        <span className="text-[11px] text-text-muted">{entry.reason}</span>
+                      )}
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <span className="font-mono tabular-nums text-text">
+                        {formatMoneyString(entry.grand_total)}
+                      </span>
+                      <SaleReturnStatusBadge status={entry.status} />
+                    </div>
+                  </div>
+                ))
+              )}
+            </CardBody>
+          </Card>
+
+          <Card>
+            <CardHeader
+              title="Refunds"
+              description={
+                moneyUnits(remainingRefundable) > 0
+                  ? `${formatMoneyString(remainingRefundable)} still refundable`
+                  : 'Nothing left to refund.'
+              }
+            />
+            <CardBody className="flex flex-col gap-3 text-sm">
+              {refunds.length === 0 ? (
+                <p className="text-xs text-text-muted">
+                  {mayRefund
+                    ? 'Raise a refund to give money back.'
+                    : 'No money has gone back against this sale.'}
+                </p>
+              ) : (
+                refunds.map((entry) => (
+                  <div key={entry.id} className="flex flex-col gap-2 border-b border-border pb-3 last:border-0 last:pb-0">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex min-w-0 flex-col">
+                        <span className="font-mono text-xs text-text">{entry.number}</span>
+                        <span className="text-[11px] text-text-subtle">
+                          {entry.method_label || labelFor.refundMethod(entry.method)} ·{' '}
+                          {formatDate(entry.requested_at, true)}
+                        </span>
+                        {entry.reason && (
+                          <span className="text-[11px] text-text-muted">{entry.reason}</span>
+                        )}
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <span className="font-mono tabular-nums text-text">
+                          {formatMoneyString(entry.amount)}
+                        </span>
+                        <RefundStatusBadge status={entry.status} />
+                      </div>
+                    </div>
+                    <RefundActions refund={entry} size="xs" />
+                  </div>
+                ))
+              )}
+            </CardBody>
+          </Card>
+        </div>
+      )}
+
       <SettleDialog open={settling} onClose={() => setSettling(false)} sale={sale} />
+      {/* Remount each dialog on open so it starts from the sale's current figures. */}
+      <RecordReturnDialog
+        key={returning ? 'return-open' : 'return-closed'}
+        open={returning}
+        onClose={() => setReturning(false)}
+        sale={sale}
+      />
+      <RaiseRefundDialog
+        key={refunding ? 'refund-open' : 'refund-closed'}
+        open={refunding}
+        onClose={() => setRefunding(false)}
+        sale={sale}
+      />
+      <VoidSaleDialog
+        key={voiding ? 'void-open' : 'void-closed'}
+        open={voiding}
+        onClose={() => setVoiding(false)}
+        sale={sale}
+      />
 
       <ConfirmModal
         open={cancelling}

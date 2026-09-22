@@ -239,6 +239,8 @@ export interface ListParams {
   /** Register sessions (3.4): whose shift, and whether it is still awaiting a signature. */
   cashier_id?: number;
   awaiting_approval?: string;
+  /** Refunds (3.5): how the money is going back. */
+  method?: string;
 }
 
 /* ------------------------- Phase 2: Catalog master ------------------------- */
@@ -1391,6 +1393,9 @@ export interface SaleItem {
   tax_amount: string;
   line_subtotal: string;
   line_total: string;
+  /** How much of this line has already been returned, and how much still can. */
+  returned_quantity: string;
+  returnable_quantity: string;
   notes: string | null;
 }
 
@@ -1432,6 +1437,14 @@ export interface Sale {
   /** Unpaid | Partially paid | Paid | Cancelled, derived server-side. */
   payment_status: string;
   fully_paid: boolean;
+
+  /** Money already refunded, and the gross figure a refund may draw on. */
+  refunded_total: string;
+  refundable_amount: string;
+  /** Goods returned so far; present only when the sale was loaded with returns. */
+  returned_total?: string;
+  returns?: SaleReturn[];
+  refunds?: Refund[];
 
   notes: string | null;
 
@@ -1676,5 +1689,216 @@ export interface ShiftReport {
   shift: RegisterSession;
   currency: string;
   report: ShiftReportLine[];
+}
+
+/* ------------------------- Phase 3.5: Returns & refunds ------------------------- */
+
+/**
+ * Where a sales return has got to.
+ *
+ * Only three, and two of them are terminal: posting the slip is what puts stock
+ * back through the ledger, so `completed` is the only state that moved anything.
+ * `draft` exists for the single instant inside the engine's transaction, and
+ * `cancelled` is reserved for reversing a slip in a later phase. A wrong return
+ * is corrected by posting another one, never by editing this one.
+ */
+export type SaleReturnStatus = 'draft' | 'completed' | 'cancelled';
+
+/**
+ * One line of a sales return — a snapshot of the sale line, scaled to the
+ * quantity coming back.
+ *
+ * `line_total` carries the line's share of the order-level discount, charges and
+ * rounding, so a full return adds back up to the sale's `grand_total` exactly.
+ * `unit_cost`/`total_cost` are the cost basis the goods left at, kept for the
+ * Phase 4 COGS reversal.
+ */
+export interface SaleReturnItem {
+  id: number;
+  sale_return_id: number;
+  sale_item_id: number | null;
+  product_id: number | null;
+  product_variant_id: number | null;
+  unit_id: number | null;
+  tax_id: number | null;
+
+  product_name: string;
+  product_sku: string | null;
+  variant_name: string | null;
+  unit_code: string | null;
+
+  quantity: string;
+  unit_price: string;
+  discount: string;
+  discount_type: DiscountType;
+  discount_amount: string;
+  tax_rate: string;
+  tax_mode: 'exclusive' | 'inclusive';
+  tax_amount: string;
+  line_subtotal: string;
+  line_total: string;
+  unit_cost: string;
+  total_cost: string;
+  restock: boolean;
+  reason: string | null;
+  notes: string | null;
+}
+
+/** The original sale a return or refund points at, as much as a list row needs. */
+export interface SaleDocumentRef {
+  id: number;
+  number: string;
+  grand_total: string;
+  currency: string;
+}
+
+/** A return slip: goods coming back against the sale they came from. */
+export interface SaleReturn {
+  id: number;
+  company_id: number;
+  branch_id: number | null;
+  warehouse_id: number | null;
+  sale_id: number;
+  register_id: number | null;
+  register_session_id: number | null;
+  customer_id: number | null;
+  returned_by: number | null;
+
+  number: string;
+  return_date: string | null;
+  status: SaleReturnStatus;
+  status_label: string;
+  posted_at: string | null;
+  reason: string | null;
+
+  currency: string;
+  subtotal: string;
+  discount_total: string;
+  tax_total: string;
+  grand_total: string;
+  cost_total: string;
+  notes: string | null;
+
+  /** Present on the list and detail payloads; `item_count` only on the list. */
+  item_count?: number;
+  items?: SaleReturnItem[];
+  refunds?: Refund[];
+  sale?: SaleDocumentRef | null;
+  returned_by_user?: { id: number | null; name: string | null } | null;
+
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+/**
+ * Where a refund has got to along Requested → Approved → Processing → Completed.
+ *
+ * `failed` and `rejected` are the two ways money does not move, kept apart on
+ * purpose: a rejection is a decision made before anything was attempted, a
+ * failure is a payout that was attempted and did not happen. Only `completed`
+ * writes the sale's tenders down.
+ */
+export type RefundStatus =
+  | 'requested'
+  | 'approved'
+  | 'processing'
+  | 'completed'
+  | 'failed'
+  | 'rejected';
+
+/**
+ * How the money goes back.
+ *
+ * `original_payment` pays back onto the tender it came from; `cash`, `manual`
+ * and `gateway` are the other routes. The allocations always name the sale
+ * payments that were written down, whichever method was chosen.
+ */
+export type RefundMethod = 'cash' | 'original_payment' | 'manual' | 'gateway';
+
+/** The tender snapshot on a refund allocation, included so a screen can name it. */
+export interface RefundAllocationPayment {
+  id: number;
+  number: string;
+  channel: PaymentChannel;
+  channel_label: string;
+  method_name: string;
+  amount: string;
+  refunded_amount: string;
+  status: SalePaymentStatus;
+}
+
+/** The slice of a refund that came off one tender. */
+export interface RefundAllocation {
+  id: number;
+  refund_id: number;
+  sale_payment_id: number;
+  amount: string;
+  currency: string;
+  payment?: RefundAllocationPayment | null;
+}
+
+/** Money going back to a customer, with the decisions and timestamps on it. */
+export interface Refund {
+  id: number;
+  company_id: number;
+  sale_id: number;
+  sale_return_id: number | null;
+  register_id: number | null;
+  register_session_id: number | null;
+
+  number: string;
+  method: RefundMethod;
+  method_label: string;
+  status: RefundStatus;
+  status_label: string;
+  amount: string;
+  currency: string;
+  reason: string | null;
+  external_reference: string | null;
+
+  /** The rule the decision was judged against, snapshotted at creation. */
+  approval_threshold: string;
+  approval_required: boolean;
+
+  requested_by: number | null;
+  requested_at: string | null;
+  requested_by_user?: { id: number | null; name: string | null } | null;
+  approved_by: number | null;
+  approved_at: string | null;
+  approved_by_user?: { id: number | null; name: string | null } | null;
+  rejected_by: number | null;
+  rejected_at: string | null;
+  rejection_reason: string | null;
+  processed_by: number | null;
+  processed_at: string | null;
+  processed_by_user?: { id: number | null; name: string | null } | null;
+  failure_reason: string | null;
+
+  metadata: Record<string, unknown> | null;
+  notes: string | null;
+
+  allocations?: RefundAllocation[];
+  sale?: SaleDocumentRef | null;
+
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface StoreSaleReturnPayload {
+  reason: string;
+  return_date?: string;
+  warehouse_id?: number | null;
+  notes?: string | null;
+  items: Array<{ sale_item_id: number; quantity: string }>;
+}
+
+export interface StoreRefundPayload {
+  amount: string;
+  method?: RefundMethod;
+  reason: string;
+  sale_return_id?: number | null;
+  external_reference?: string | null;
+  notes?: string | null;
+  allocations?: Array<{ sale_payment_id: number; amount: string }>;
 }
 

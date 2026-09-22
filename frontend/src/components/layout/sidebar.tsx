@@ -58,6 +58,18 @@ function buildGroups(): NavGroup[] {
           icon: 'cash-outline',
           permission: 'register_sessions.view',
         },
+        {
+          label: 'Sales Returns',
+          to: '/sales/returns',
+          icon: 'return-down-back-outline',
+          permission: 'sales.view',
+        },
+        {
+          label: 'Refunds',
+          to: '/refunds',
+          icon: 'refresh-circle-outline',
+          permission: 'refunds.view',
+        },
       ],
     },
     {

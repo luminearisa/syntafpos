@@ -26,6 +26,7 @@ class NumberingService
         'purchase_order' => ['prefix' => 'PO', 'padding' => 6, 'reset' => SequenceResetPeriod::Yearly->value],
         'payment' => ['prefix' => 'PAY', 'padding' => 6, 'reset' => SequenceResetPeriod::Yearly->value],
         'return' => ['prefix' => 'RET', 'padding' => 6, 'reset' => SequenceResetPeriod::Yearly->value],
+        'refund' => ['prefix' => 'RFD', 'padding' => 6, 'reset' => SequenceResetPeriod::Yearly->value],
         'expense' => ['prefix' => 'EXP', 'padding' => 6, 'reset' => SequenceResetPeriod::Yearly->value],
         'journal' => ['prefix' => 'JE', 'padding' => 6, 'reset' => SequenceResetPeriod::Yearly->value],
         'receipt' => ['prefix' => 'RCP', 'padding' => 6, 'reset' => SequenceResetPeriod::Yearly->value],

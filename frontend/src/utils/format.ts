@@ -269,6 +269,61 @@ export const labelFor = {
   },
 
   /**
+   * A sales return's own status. Only `completed` moved stock, so the list can
+   * colour it calm and leave the other two grey.
+   */
+  saleReturnStatus: (value: string | null | undefined): string => {
+    const labels: Record<string, string> = {
+      draft: 'Draft',
+      completed: 'Completed',
+      cancelled: 'Cancelled',
+    };
+
+    if (!value) {
+      return '-';
+    }
+
+    return labels[value] ?? value;
+  },
+
+  /**
+   * Where a refund has got to. `requested` and `approved` are waiting states,
+   * `processing` is in flight, `completed` is money moved, and `failed`/`rejected`
+   * are the two ways it did not.
+   */
+  refundStatus: (value: string | null | undefined): string => {
+    const labels: Record<string, string> = {
+      requested: 'Requested',
+      approved: 'Approved',
+      processing: 'Processing',
+      completed: 'Completed',
+      failed: 'Failed',
+      rejected: 'Rejected',
+    };
+
+    if (!value) {
+      return '-';
+    }
+
+    return labels[value] ?? value;
+  },
+
+  refundMethod: (value: string | null | undefined): string => {
+    const labels: Record<string, string> = {
+      cash: 'Cash',
+      original_payment: 'Original payment',
+      manual: 'Manual',
+      gateway: 'Gateway',
+    };
+
+    if (!value) {
+      return '-';
+    }
+
+    return labels[value] ?? value;
+  },
+
+  /**
    * A payment *channel*, not a shop's method name.
    *
    * A sale row already carries `method_name` — what the shop called it at the

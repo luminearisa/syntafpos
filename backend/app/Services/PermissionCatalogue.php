@@ -54,6 +54,17 @@ final class PermissionCatalogue
             // from the draft cart that precedes it.
             'sales' => [
                 'sales.view', 'sales.create', 'sales.complete', 'sales.cancel',
+                // Phase 3.5 — giving goods back (return) and withdrawing an
+                // open ticket with a reason (void). Kept apart from cancel,
+                // which older clients still use.
+                'sales.return', 'sales.void',
+            ],
+            // Money going back to a customer. Raising a refund and signing one
+            // off are deliberately different permissions: the work order's
+            // threshold only means something if the person across the counter
+            // cannot approve their own exception.
+            'refunds' => [
+                'refunds.view', 'refunds.create', 'refunds.approve', 'refunds.process',
             ],
             // How a shop is allowed to be paid is configuration, and taking a
             // payment record away after the fact is not something the till
@@ -107,7 +118,7 @@ final class PermissionCatalogue
                 ->only([
                     'branches', 'warehouses', 'registers', 'users', 'roles',
                     'products', 'categories', 'brands', 'units', 'customers', 'suppliers',
-                    'sales',
+                    'sales', 'refunds',
                     // All six verbs, including approve and reopen: the work order
                     // puts variance sign-off and re-counting with a manager, and a
                     // manager who cannot open a drawer cannot see what is in one.
@@ -133,8 +144,14 @@ final class PermissionCatalogue
                 'payment_methods.view',
                 'pos.view', 'pos.transact', 'pos.hold',
                 // A cashier raises and settles the ticket; taking one back is a
-                // supervisor's call, so sales.cancel is deliberately absent.
-                'sales.view', 'sales.create', 'sales.complete',
+                // supervisor's call, so sales.cancel is deliberately absent. A
+                // documented return with the goods in hand is floor work, but
+                // voiding a ticket and approving an exception are not.
+                'sales.view', 'sales.create', 'sales.complete', 'sales.return',
+                // The work order's refund split: a cashier may raise a refund and
+                // pay out one the rule already approved, but not approve one the
+                // threshold referred to a manager.
+                'refunds.view', 'refunds.create', 'refunds.process',
                 // The work order's cashier set: open, process, close. Not approve —
                 // a signature on one's own shortage is not a control — and not
                 // reopen, which is the same conversation from the other end.
@@ -153,7 +170,7 @@ final class PermissionCatalogue
                 ->all(),
 
             'finance' => collect(self::groups())
-                ->only(['suppliers', 'taxes', 'sales', 'payment_methods', 'register_sessions'])
+                ->only(['suppliers', 'taxes', 'sales', 'refunds', 'payment_methods', 'register_sessions'])
                 ->flatten()
                 // Back-office money, including signing off a drawer it did not
                 // count — but not opening or closing one, which is floor work.
@@ -175,7 +192,7 @@ final class PermissionCatalogue
                 )->all())
                 ->flatten()
                 ->push('audit.view', 'settings.view')
-                ->push('inventory.view', 'purchases.view', 'sales.view')
+                ->push('inventory.view', 'purchases.view', 'sales.view', 'refunds.view')
                 ->push('payment_methods.view')
                 ->push('reports.inventory', 'reports.purchasing')
                 ->values()
@@ -237,7 +254,13 @@ final class PermissionCatalogue
             'sales.cancel' => 'Cancel sales',
             'sales.complete' => 'Complete sales',
             'sales.create' => 'Create sales',
+            'sales.return' => 'Process sales returns',
             'sales.view' => 'View sales',
+            'sales.void' => 'Void sales',
+            'refunds.approve' => 'Approve refunds',
+            'refunds.create' => 'Raise refunds',
+            'refunds.process' => 'Process refunds',
+            'refunds.view' => 'View refunds',
             'payment_methods.create' => 'Create payment methods',
             'payment_methods.delete' => 'Delete payment methods',
             'payment_methods.update' => 'Update payment methods',

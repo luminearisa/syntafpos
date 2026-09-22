@@ -67,7 +67,19 @@ class SaleResource extends JsonResource
             // Payment status for the invoice line: what the customer owes, said
             // plainly, derived from the figures above rather than stored twice.
             'payment_status' => $this->paymentStatus($balance),
-            'fully_paid' => bccomp($balance, '0', 4) <= 0,
+            'fully_paid' => $this->status === SaleStatus::Completed || bccomp($balance, '0', 4) <= 0,
+
+            // Money that has gone back to the customer, and what is left that a
+            // further refund may draw on. A completed sale stays completed after a
+            // refund, so `paid_total` net of the tenders' `refunded_amount` is the
+            // refundable figure rather than a reopened balance.
+            'refunded_total' => $this->refundedTotal(),
+            'refundable_amount' => (string) $this->paid_total,
+            // Goods returned, present only when the document was loaded with its
+            // returns so a list does not run a query per row.
+            'returned_total' => $this->whenLoaded('returns', fn () => $this->sumReturnTotals()),
+            'returns' => SaleReturnResource::collection($this->whenLoaded('returns')),
+            'refunds' => RefundResource::collection($this->whenLoaded('refunds')),
 
             'notes' => $this->notes,
 
@@ -138,9 +150,28 @@ class SaleResource extends JsonResource
     {
         return match (true) {
             $this->status === SaleStatus::Cancelled => 'Cancelled',
+            // A completed ticket was paid; refunds against it are a second
+            // document and do not turn the invoice back into "partially paid".
+            $this->status === SaleStatus::Completed => 'Paid',
             bccomp((string) $this->paid_total, '0', 4) <= 0 => 'Unpaid',
             bccomp($balance, '0', 4) > 0 => 'Partially paid',
             default => 'Paid',
         };
+    }
+
+    /**
+     * The value of goods returned so far, summed off the loaded relation.
+     */
+    private function sumReturnTotals(): string
+    {
+        $total = '0';
+
+        foreach ($this->returns as $return) {
+            if ($return->status->isPosted()) {
+                $total = bcadd($total, (string) $return->grand_total, 4);
+            }
+        }
+
+        return $total;
     }
 }
