@@ -1,0 +1,5 @@
+# Local tooling config — contains live API keys, must never be committed.
+opencode.json
+
+# Stray scratch file.
+New Text Document.txt
