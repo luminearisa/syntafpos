@@ -29,9 +29,9 @@ export function DashboardWidgetCard({
   const pending = !widget.available;
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3 shadow-xs">
+    <div className="group relative flex min-h-[116px] flex-col gap-3 overflow-hidden rounded-xl border border-border/80 bg-surface p-3.5 shadow-xs transition-all duration-150 hover:-translate-y-0.5 hover:shadow-sm sm:p-4">
       <div className="flex items-center justify-between gap-2">
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-surface-alt text-text-muted">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary ring-1 ring-primary/5">
           <ion-icon name={icon} class="text-base" aria-hidden="true" />
         </span>
 

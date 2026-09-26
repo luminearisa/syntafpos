@@ -89,7 +89,7 @@ export function DataTable<T>({
 
   if (loading) {
     return (
-      <div className="rounded-lg border border-border bg-surface">
+      <div className="overflow-hidden rounded-xl border border-border/80 bg-surface shadow-xs">
         <TableSkeleton rows={6} />
       </div>
     );
@@ -97,7 +97,7 @@ export function DataTable<T>({
 
   if (error) {
     return (
-      <div className="rounded-lg border border-border bg-surface">
+      <div className="overflow-hidden rounded-xl border border-border/80 bg-surface shadow-xs">
         <ErrorState message={error} onRetry={onRetry} />
       </div>
     );
@@ -108,15 +108,15 @@ export function DataTable<T>({
   return (
     <div className="flex flex-col gap-3">
       {searchable && (
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col items-stretch justify-between gap-2.5 sm:flex-row sm:items-center">
           <Input
             name="search"
             icon="search-outline"
             placeholder={searchPlaceholder}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            wrapperClassName="w-full max-w-xs"
-            className="h-8"
+            wrapperClassName="w-full sm:max-w-md"
+            className="h-10"
           />
           {pagination && (
             <span className="shrink-0 text-xs text-text-muted">
@@ -126,12 +126,12 @@ export function DataTable<T>({
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-lg border border-border bg-surface">
+      <div className="overflow-x-auto rounded-xl border border-border/80 bg-surface shadow-xs">
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr
               className={cn(
-                'border-b border-border bg-surface-alt',
+                'border-b border-border/80 bg-surface-alt/80',
                 stickyHeader && 'sticky top-0 z-10'
               )}
             >
@@ -144,7 +144,7 @@ export function DataTable<T>({
                     scope="col"
                     style={column.width ? { width: column.width } : undefined}
                     className={cn(
-                      'px-3 py-2 text-xs font-semibold text-text-muted whitespace-nowrap',
+                      'px-3.5 py-3 text-[10px] font-bold tracking-[0.08em] text-text-muted whitespace-nowrap uppercase',
                       alignClasses[column.align ?? 'left'],
                       column.className
                     )}
@@ -182,13 +182,13 @@ export function DataTable<T>({
               rows.map((row) => (
                 <tr
                   key={rowKey(row)}
-                  className="border-b border-border last:border-0 hover:bg-surface-alt"
+                  className="border-b border-border/70 transition-colors last:border-0 hover:bg-primary-soft/35"
                 >
                   {columns.map((column) => (
                     <td
                       key={column.key}
                       className={cn(
-                        'px-3 py-2 text-text whitespace-nowrap',
+                        'px-3.5 py-2.5 text-[13px] text-text whitespace-nowrap',
                         alignClasses[column.align ?? 'left'],
                         column.className
                       )}
@@ -218,7 +218,7 @@ export function DataTable<T>({
             <span>Show</span>
             <select
               aria-label="Rows per page"
-              className="h-8 rounded-md border border-border bg-surface px-2 text-sm text-text focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              className="h-9 rounded-lg border border-border bg-surface px-2.5 text-xs font-medium text-text shadow-xs focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
               value={params.per_page ?? 20}
               onChange={(event) =>
                 onParamsChange({ per_page: Number(event.target.value), page: 1 })
@@ -279,7 +279,7 @@ function PaginationButton({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        'flex h-8 w-8 items-center justify-center rounded-md border border-border bg-surface text-text-muted',
+        'flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-surface text-text-muted shadow-xs transition-colors',
         'hover:bg-surface-alt hover:text-text',
         'disabled:cursor-not-allowed disabled:opacity-40',
         'focus-visible:outline-2 focus-visible:outline-primary'

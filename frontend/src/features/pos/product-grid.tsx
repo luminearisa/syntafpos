@@ -183,17 +183,22 @@ function ProductTile({
       onClick={onAdd}
       disabled={disabled}
       className={cn(
-        'flex h-full flex-col justify-between gap-2 rounded-lg border border-border bg-surface p-3 text-left',
-        'transition-shadow hover:border-primary hover:shadow-sm focus-visible:outline-2 focus-visible:outline-primary',
+        'flex h-full min-h-[104px] flex-col justify-between gap-2.5 rounded-xl border border-border/80 bg-surface p-3 text-left shadow-xs',
+        'transition-all duration-150 hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-sm focus-visible:outline-2 focus-visible:outline-primary',
         'disabled:cursor-not-allowed disabled:opacity-60'
       )}
     >
-      <div className="min-w-0">
-        <span className="line-clamp-2 text-sm font-medium text-text">{product.name}</span>
-        <span className="mt-0.5 block truncate font-mono text-[11px] text-text-subtle">
-          {product.sku}
-          {product.unit?.code ? ` · ${product.unit.code}` : ''}
+      <div className="flex min-w-0 items-start gap-2.5">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary">
+          <ion-icon name="cube-outline" class="text-base" aria-hidden="true" />
         </span>
+        <div className="min-w-0">
+          <span className="line-clamp-2 text-[13px] font-semibold leading-snug text-text">{product.name}</span>
+          <span className="mt-1 block truncate font-mono text-[10px] text-text-subtle">
+            {product.sku}
+            {product.unit?.code ? ` · ${product.unit.code}` : ''}
+          </span>
+        </div>
       </div>
 
       <div className="flex items-end justify-between gap-2">

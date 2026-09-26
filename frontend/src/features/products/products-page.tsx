@@ -310,7 +310,7 @@ export default function ProductsPage() {
         }
       />
 
-      <div className="flex flex-wrap items-end gap-3">
+      <div className="grid grid-cols-2 items-end gap-2 sm:gap-3">
         <Select
           label="Category"
           name="category_filter"

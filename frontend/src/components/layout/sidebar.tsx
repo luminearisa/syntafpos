@@ -291,6 +291,7 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose }: SidebarProps) 
   const can = useAuthStore((state) => state.can);
   const groups = buildGroups();
   const location = useLocation();
+  const compact = collapsed && !mobileOpen;
 
   useEffect(() => {
     onMobileClose();
@@ -300,7 +301,7 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose }: SidebarProps) 
     <>
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-40 bg-slate-900/50 lg:hidden"
+          className="fixed inset-0 z-40 bg-slate-950/60 backdrop-blur-[2px] lg:hidden"
           onClick={onMobileClose}
           aria-hidden="true"
         />
@@ -308,16 +309,18 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose }: SidebarProps) 
 
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-40 flex flex-col border-r border-border bg-surface',
+          'fixed inset-y-0 left-0 z-50 flex flex-col border-r border-[#253651] bg-[#111e33] text-white shadow-2xl',
           'transition-[width,transform] duration-200 ease-in-out',
-          collapsed ? 'w-[60px]' : 'w-60',
-          mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+          compact ? 'w-[72px]' : 'w-64',
+          mobileOpen
+            ? 'visible translate-x-0'
+            : 'invisible -translate-x-full lg:visible lg:translate-x-0'
         )}
         aria-label="Main navigation"
       >
-        <Brand collapsed={collapsed} />
+        <Brand collapsed={compact} mobileOpen={mobileOpen} onMobileClose={onMobileClose} />
 
-        <nav className="flex-1 overflow-y-auto overflow-x-hidden py-3">
+        <nav className="flex-1 overscroll-contain overflow-y-auto overflow-x-hidden py-4">
           {groups.map((group) => {
             const visible = group.items.filter(
               (item) => !item.permission || can(item.permission)
@@ -329,8 +332,8 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose }: SidebarProps) 
 
             return (
               <div key={group.title} className="mb-4">
-                {!collapsed && (
-                  <p className="px-4 pb-1.5 text-[10px] font-semibold tracking-wider text-text-subtle uppercase">
+                {!compact && (
+                  <p className="px-5 pb-2 text-[10px] font-bold tracking-[0.16em] text-slate-400 uppercase">
                     {group.title}
                   </p>
                 )}
@@ -338,7 +341,7 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose }: SidebarProps) 
                 <ul className="flex flex-col gap-0.5">
                   {visible.map((item) => (
                     <li key={item.to}>
-                      <SidebarLink item={item} collapsed={collapsed} />
+                      <SidebarLink item={item} collapsed={compact} />
                     </li>
                   ))}
                 </ul>
@@ -346,8 +349,8 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose }: SidebarProps) 
             );
           })}
 
-          {!collapsed && (
-            <p className="px-4 pb-1.5 pt-2 text-[10px] font-semibold tracking-wider text-text-subtle uppercase">
+          {!compact && (
+            <p className="px-5 pb-2 pt-3 text-[10px] font-bold tracking-[0.16em] text-slate-400 uppercase">
               Upcoming
             </p>
           )}
@@ -357,36 +360,55 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose }: SidebarProps) 
                 <span
                   title={`${item.label} — available in a later phase`}
                   className={cn(
-                    'flex items-center gap-2.5 px-4 py-1.5 text-sm text-text-subtle',
+                    'mx-2.5 flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] text-slate-400',
                     'cursor-not-allowed'
                   )}
                 >
                   <ion-icon name={item.icon} class="text-lg shrink-0" aria-hidden="true" />
-                  {!collapsed && <span className="truncate">{item.label}</span>}
+                  {!compact && <span className="truncate">{item.label}</span>}
                 </span>
               </li>
             ))}
           </ul>
         </nav>
 
-        <CollapseFooter collapsed={collapsed} />
+        <CollapseFooter collapsed={compact} />
       </aside>
     </>
   );
 }
 
-function Brand({ collapsed }: { collapsed: boolean }) {
+function Brand({
+  collapsed,
+  mobileOpen,
+  onMobileClose,
+}: {
+  collapsed: boolean;
+  mobileOpen: boolean;
+  onMobileClose: () => void;
+}) {
   return (
-    <div className="flex h-14 items-center gap-2.5 border-b border-border px-4">
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary text-white">
-        <ion-icon name="pricetags-outline" class="text-lg" aria-hidden="true" />
+    <div className="flex h-16 shrink-0 items-center gap-3 border-b border-[#253651] px-4">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#6588ff] to-[#3158c9] text-white shadow-md shadow-blue-950/30">
+        <ion-icon name="calculator-outline" class="text-xl" aria-hidden="true" />
       </span>
 
       {!collapsed && (
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-text">Ultimate POS</p>
-          <p className="truncate text-[10px] text-text-subtle">Business Management</p>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[15px] font-bold tracking-[-0.02em] text-white">SyntafPOS</p>
+          <p className="truncate text-[10px] font-medium tracking-wide text-slate-400">RETAIL OPERATIONS</p>
         </div>
+      )}
+
+      {mobileOpen && (
+        <button
+          type="button"
+          onClick={onMobileClose}
+          className="ml-auto flex h-9 w-9 items-center justify-center rounded-lg text-slate-300 transition-colors hover:bg-white/10 hover:text-white lg:hidden"
+          aria-label="Close navigation menu"
+        >
+          <ion-icon name="close-outline" class="text-xl" aria-hidden="true" />
+        </button>
       )}
     </div>
   );
@@ -405,30 +427,46 @@ function SidebarLink({ item, collapsed }: { item: NavItem; collapsed: boolean })
       title={collapsed ? item.label : undefined}
       className={({ isActive }) =>
         cn(
-          'flex items-center gap-2.5 px-4 py-1.5 text-sm transition-colors',
-          'focus-visible:outline-2 focus-visible:outline-primary',
+          'group relative mx-2 flex min-h-10 items-center gap-3 rounded-lg px-3 text-[13px] font-medium transition-colors duration-150',
+          collapsed && 'justify-center px-0',
+          'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#91a9ff]',
           isActive
-            ? 'bg-primary-soft font-medium text-primary'
-            : 'text-text-muted hover:bg-surface-alt hover:text-text'
+            ? 'bg-white/10 text-white shadow-sm'
+            : 'text-slate-300 hover:bg-white/[0.06] hover:text-white'
         )
       }
     >
-      <ion-icon name={item.icon} class="text-lg shrink-0" aria-hidden="true" />
-      {label}
+      {({ isActive }) => (
+        <>
+          <span
+            className={cn(
+              'absolute inset-y-2 left-0 w-[3px] rounded-r-full',
+              isActive ? 'bg-[#86a5ff]' : 'bg-transparent'
+            )}
+            aria-hidden="true"
+          />
+          <ion-icon
+            name={item.icon}
+            class={cn('shrink-0 text-[19px]', isActive ? 'text-[#afc2ff]' : 'text-slate-400 group-hover:text-slate-200')}
+            aria-hidden="true"
+          />
+          {label}
+        </>
+      )}
     </NavLink>
   );
 }
 
 function CollapseFooter({ collapsed }: { collapsed: boolean }) {
   return (
-    <div className="hidden border-t border-border p-3 lg:block">
+    <div className="hidden border-t border-[#253651] px-4 py-3 lg:block">
       <p
         className={cn(
-          'text-[10px] text-text-subtle',
+          'text-[10px] text-slate-400',
           collapsed ? 'text-center' : 'px-1'
         )}
       >
-        {collapsed ? 'v1.0' : 'Ultimate POS — Phase 1'}
+        {collapsed ? 'v1.0' : 'SyntafPOS — Retail workspace'}
       </p>
     </div>
   );

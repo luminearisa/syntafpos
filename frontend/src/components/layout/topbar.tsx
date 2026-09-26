@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { cn, initials } from '@/utils/format';
 import { useAuthStore } from '@/stores/auth-store';
 import { ContextSwitcher, useSwitcherOptions } from './context-switcher';
+import { PwaInstallButton } from './pwa-install-button';
 
 interface TopbarProps {
   collapsed: boolean;
@@ -19,21 +20,21 @@ export function Topbar({
   const { companies, branches, warehouses, registers } = useSwitcherOptions();
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-border bg-surface/95 px-3 backdrop-blur">
+    <header className="sticky top-0 z-30 flex h-16 items-center gap-2 border-b border-border/80 bg-white/90 px-3 shadow-[0_1px_0_0_rgba(20,34,58,0.02)] backdrop-blur-xl sm:gap-3 sm:px-5">
       <button
         type="button"
         onClick={onOpenMobile}
-        className="flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-surface-alt lg:hidden"
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-text-muted transition-colors hover:bg-surface-alt hover:text-text lg:hidden"
         aria-label="Open navigation menu"
       >
-        <ion-icon name="menu-outline" aria-hidden="true" />
+        <ion-icon name="menu-outline" class="text-xl" aria-hidden="true" />
       </button>
 
       <button
         type="button"
         onClick={onToggleCollapsed}
         className={cn(
-          'hidden h-8 w-8 items-center justify-center rounded-md text-text-muted',
+          'hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg text-text-muted transition-colors',
           'hover:bg-surface-alt hover:text-text lg:flex'
         )}
         aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
@@ -41,11 +42,12 @@ export function Topbar({
       >
         <ion-icon
           name={collapsed ? 'chevron-forward-outline' : 'chevron-back-outline'}
+          class="text-lg"
           aria-hidden="true"
         />
       </button>
 
-      <div className="flex flex-1 items-center gap-1 overflow-x-auto">
+      <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
         <ContextSwitcher
           scope="company"
           icon="business-outline"
@@ -54,44 +56,77 @@ export function Topbar({
           onSelect={(id) => setScope({ companyId: id })}
         />
 
-        <span className="text-text-subtle">/</span>
-
-        <ContextSwitcher
-          scope="branch"
-          icon="storefront-outline"
-          placeholder="All branches"
-          options={branches}
-          disabled={companies.length === 0}
-          onSelect={(id) => setScope({ branchId: id })}
-        />
-
-        <span className="hidden text-text-subtle sm:inline">/</span>
+        <span className="hidden h-4 w-px bg-border-strong sm:block" aria-hidden="true" />
 
         <div className="hidden items-center gap-1 sm:flex">
           <ContextSwitcher
-            scope="warehouse"
-            icon="cube-outline"
-            placeholder="All warehouses"
-            options={warehouses}
+            scope="branch"
+            icon="storefront-outline"
+            placeholder="All branches"
+            options={branches}
             disabled={companies.length === 0}
-            onSelect={(id) => setScope({ warehouseId: id })}
+            onSelect={(id) => setScope({ branchId: id })}
           />
 
-          <span className="text-text-subtle">/</span>
+          <span className="hidden h-4 w-px bg-border-strong xl:block" aria-hidden="true" />
 
-          <ContextSwitcher
-            scope="register"
-            icon="cash-outline"
-            placeholder="All registers"
-            options={registers}
-            disabled={companies.length === 0}
-            onSelect={(id) => setScope({ registerId: id })}
-          />
+          <div className="hidden items-center gap-1 xl:flex">
+            <ContextSwitcher
+              scope="warehouse"
+              icon="cube-outline"
+              placeholder="All warehouses"
+              options={warehouses}
+              disabled={companies.length === 0}
+              onSelect={(id) => setScope({ warehouseId: id })}
+            />
+            <span className="h-4 w-px bg-border-strong" aria-hidden="true" />
+            <ContextSwitcher
+              scope="register"
+              icon="cash-outline"
+              placeholder="All registers"
+              options={registers}
+              disabled={companies.length === 0}
+              onSelect={(id) => setScope({ registerId: id })}
+            />
+          </div>
         </div>
       </div>
 
-      <UserMenu user={user} logout={logout} />
+      <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+        <NetworkIndicator />
+        <PwaInstallButton />
+        <UserMenu user={user} logout={logout} />
+      </div>
     </header>
+  );
+}
+
+function NetworkIndicator() {
+  const [online, setOnline] = useState(() => navigator.onLine);
+
+  useEffect(() => {
+    const update = () => setOnline(navigator.onLine);
+    window.addEventListener('online', update);
+    window.addEventListener('offline', update);
+    return () => {
+      window.removeEventListener('online', update);
+      window.removeEventListener('offline', update);
+    };
+  }, []);
+
+  return (
+    <span
+      role="status"
+      aria-label={online ? 'Connection online' : 'Connection offline'}
+      title={online ? 'Connected' : 'Offline — live data needs a connection'}
+      className={cn(
+        'flex h-9 w-9 items-center justify-center gap-2 rounded-lg text-xs font-medium sm:w-auto sm:px-2.5',
+        online ? 'text-success' : 'bg-warning-soft text-warning'
+      )}
+    >
+      <span className={cn('h-2 w-2 rounded-full', online ? 'bg-success' : 'bg-warning')} />
+      <span className="hidden sm:inline">{online ? 'Online' : 'Offline'}</span>
+    </span>
   );
 }
 
@@ -136,10 +171,10 @@ function UserMenu({
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="flex items-center gap-2 rounded-md px-2 py-1 hover:bg-surface-alt focus-visible:outline-2 focus-visible:outline-primary"
+        className="flex h-10 items-center gap-2 rounded-xl px-1.5 transition-colors hover:bg-surface-alt focus-visible:outline-2 focus-visible:outline-primary sm:px-2"
         aria-label="Account menu"
       >
-        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary-soft text-xs font-semibold text-primary">
+        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary-dark text-xs font-bold text-white shadow-xs">
           {initials(user.name)}
         </span>
         <span className="hidden text-left sm:block">
@@ -158,7 +193,7 @@ function UserMenu({
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1 w-56 rounded-md border border-border bg-surface shadow-lg">
+        <div className="absolute right-0 top-full z-50 mt-2 w-60 overflow-hidden rounded-xl border border-border/80 bg-surface shadow-lg">
           <div className="border-b border-border px-3 py-2">
             <p className="text-xs font-semibold text-text">{user.name}</p>
             <p className="truncate text-[11px] text-text-muted">{user.email}</p>

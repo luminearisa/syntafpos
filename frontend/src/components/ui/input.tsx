@@ -40,9 +40,9 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             ref={ref}
             id={inputId}
             className={cn(
-              'h-9 w-full rounded-md border bg-surface px-3 text-sm text-text',
+              'h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-text shadow-xs transition-[border-color,box-shadow] duration-150',
               'placeholder:text-text-subtle',
-              'focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary',
+              'focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15',
               'disabled:cursor-not-allowed disabled:bg-surface-alt disabled:opacity-60',
               icon && 'pl-9',
               error && 'border-danger focus:border-danger focus:ring-danger',
@@ -108,8 +108,8 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
           ref={ref}
           id={selectId}
           className={cn(
-            'h-9 w-full rounded-md border border-border bg-surface px-3 text-sm text-text',
-            'focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary',
+            'h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-text shadow-xs transition-[border-color,box-shadow] duration-150',
+            'focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15',
             'disabled:cursor-not-allowed disabled:bg-surface-alt',
             error && 'border-danger focus:border-danger focus:ring-danger',
             className
@@ -166,9 +166,9 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           ref={ref}
           id={textareaId}
           className={cn(
-            'min-h-[72px] w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text',
+            'min-h-[88px] w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-text shadow-xs transition-[border-color,box-shadow] duration-150',
             'placeholder:text-text-subtle',
-            'focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary',
+            'focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15',
             error && 'border-danger focus:border-danger focus:ring-danger',
             className
           )}
@@ -200,7 +200,7 @@ export function FieldGroup({
   return (
     <div
       className={cn(
-        'rounded-lg border border-border bg-surface p-4',
+        'rounded-xl border border-border/80 bg-surface p-4 shadow-xs',
         className
       )}
     >

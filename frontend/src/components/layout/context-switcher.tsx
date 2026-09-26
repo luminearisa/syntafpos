@@ -64,7 +64,7 @@ export function ContextSwitcher({
   if (disabled || options.length === 0) {
     return (
       <div
-        className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-text-subtle"
+        className="flex h-9 items-center gap-2 rounded-lg px-2.5 text-xs text-text-subtle"
         title={placeholder}
       >
         <ion-icon name={icon} aria-hidden="true" />
@@ -79,8 +79,8 @@ export function ContextSwitcher({
         type="button"
         onClick={() => setOpen((value) => !value)}
         className={cn(
-          'flex max-w-[10rem] items-center gap-1.5 rounded-md px-2 py-1 text-xs text-text',
-          'hover:bg-surface-alt focus-visible:outline-2 focus-visible:outline-primary',
+          'flex h-9 max-w-[11rem] items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-text',
+          'transition-colors hover:bg-surface-alt focus-visible:outline-2 focus-visible:outline-primary',
           open && 'bg-surface-alt'
         )}
       >
@@ -98,7 +98,7 @@ export function ContextSwitcher({
           role="listbox"
           className={cn(
             'absolute top-full z-50 mt-1 min-w-[14rem] max-w-[20rem] overflow-y-auto',
-            'rounded-md border border-border bg-surface shadow-lg',
+            'rounded-xl border border-border/80 bg-surface p-1 shadow-lg',
             align === 'right' ? 'right-0' : 'left-0'
           )}
         >
@@ -108,7 +108,7 @@ export function ContextSwitcher({
               onSelect(null);
               setOpen(false);
             }}
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-text-muted hover:bg-surface-alt"
+            className="flex min-h-10 w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs text-text-muted transition-colors hover:bg-surface-alt"
           >
             <ion-icon name="ban-outline" aria-hidden="true" />
             All / not selected
@@ -123,9 +123,9 @@ export function ContextSwitcher({
                 setOpen(false);
               }}
               className={cn(
-                'flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-surface-alt',
+                'flex min-h-10 w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs transition-colors hover:bg-surface-alt',
                 option.id === active?.id
-                  ? 'font-medium text-primary'
+                  ? 'bg-primary-soft/70 font-semibold text-primary'
                   : 'text-text'
               )}
             >

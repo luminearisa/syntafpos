@@ -1,74 +1,103 @@
 @import "tailwindcss";
 
-/* ============================================================
-   Ultimate POS — Design tokens
-   Compact + professional. Semantic tokens only in components;
-   components must not hard-code raw color values.
-   ============================================================ */
+/* SyntafPOS design system: crisp, calm and information-dense. */
 @theme {
-  --color-primary: #2563eb;
-  --color-primary-dark: #1d4ed8;
-  --color-primary-light: #3b82f6;
-  --color-primary-soft: #eff6ff;
+  --color-primary: #3158c9;
+  --color-primary-dark: #2447ac;
+  --color-primary-light: #5278e0;
+  --color-primary-soft: #edf2ff;
 
-  --color-secondary: #64748b;
-  --color-secondary-dark: #475569;
-  --color-secondary-light: #94a3b8;
+  --color-secondary: #637086;
+  --color-secondary-dark: #42516a;
+  --color-secondary-light: #8793a7;
 
-  --color-success: #16a34a;
-  --color-success-soft: #f0fdf4;
-  --color-warning: #d97706;
-  --color-warning-soft: #fffbeb;
-  --color-danger: #dc2626;
-  --color-danger-soft: #fef2f2;
-  --color-info: #0891b2;
-  --color-info-soft: #ecfeff;
+  --color-success: #14805e;
+  --color-success-soft: #eaf7f1;
+  --color-warning: #9f5d06;
+  --color-warning-soft: #fff5df;
+  --color-danger: #c53d51;
+  --color-danger-soft: #fff0f2;
+  --color-info: #087c9b;
+  --color-info-soft: #eaf8fc;
 
-  --color-background: #f8fafc;
+  --color-background: #f4f7fb;
   --color-surface: #ffffff;
-  --color-surface-alt: #f1f5f9;
-  --color-surface-hover: #f8fafc;
+  --color-surface-alt: #f7f9fc;
+  --color-surface-hover: #f2f5fa;
 
-  --color-border: #e2e8f0;
-  --color-border-strong: #cbd5e1;
+  --color-border: #e3e9f1;
+  --color-border-strong: #cbd5e2;
 
-  --color-text: #0f172a;
-  --color-text-muted: #64748b;
-  --color-text-subtle: #94a3b8;
+  --color-text: #1b2940;
+  --color-text-muted: #5d6b80;
+  --color-text-subtle: #5f6e83;
 
-  --radius-sm: 0.25rem;
-  --radius-md: 0.375rem;
-  --radius-lg: 0.5rem;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.875rem;
 
-  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xs: 0 1px 2px 0 rgb(20 34 58 / 0.04);
+  --shadow-sm: 0 2px 7px 0 rgb(20 34 58 / 0.06);
+  --shadow-md: 0 12px 30px -16px rgb(20 34 58 / 0.2);
+  --shadow-lg: 0 22px 55px -28px rgb(12 27 51 / 0.32);
 
-  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    "Liberation Mono", "Courier New", monospace;
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+:root {
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color-scheme: light;
 }
 
 html,
 body,
 #root {
-  height: 100%;
+  min-height: 100%;
+}
+
+html {
+  min-width: 320px;
+  background: var(--color-background);
+  scroll-behavior: smooth;
 }
 
 body {
+  min-height: 100vh;
   margin: 0;
   background-color: var(--color-background);
   color: var(--color-text);
   font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
 }
 
-/* Compact, dense scrollbars suited to business software. */
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+::selection {
+  background: rgb(49 88 201 / 0.16);
+  color: var(--color-text);
+}
+
+ion-icon {
+  flex-shrink: 0;
+}
+
+/* Compact scrollbars keep dense inventory tables usable without visual noise. */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -79,29 +108,41 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
   background: var(--color-border-strong);
-  border-radius: var(--radius-sm);
+  background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-secondary-light);
+  background-clip: padding-box;
 }
 
-/* Focus ring is consistent across interactive elements. */
 :focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 1px;
+  outline: 2px solid var(--color-primary-light);
+  outline-offset: 2px;
 }
 
-/* Toast entrance; kept as a plain keyframe so no animation plugin is needed. */
 @keyframes pos-toast-in {
   from {
     opacity: 0;
-    transform: translateX(0.5rem);
+    transform: translateY(0.35rem) scale(0.98);
   }
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes soft-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
@@ -109,4 +150,32 @@ body {
   animation: pos-toast-in 0.18s ease-out;
 }
 
-/* Removed the Vite scaffold styling; the design system owns all visuals. */
+.page-enter {
+  animation: soft-enter 0.24s ease-out both;
+}
+
+/* Native-feeling spacing when installed to a phone's home screen. */
+@media (display-mode: standalone) {
+  body {
+    overscroll-behavior-y: none;
+  }
+}
+
+@media (max-width: 639px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

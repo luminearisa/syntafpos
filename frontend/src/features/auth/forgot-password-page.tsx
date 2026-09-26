@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardBody } from '@/components/ui/card';
 import { cn } from '@/utils/format';
+import { AuthShell } from './auth-shell';
 
 type Status = 'idle' | 'loading' | 'success';
 type ErrorVariant = 'error' | 'warning';
@@ -139,22 +140,6 @@ export default function ForgotPasswordPage(): ReactNode {
         </CardBody>
       </Card>
     </AuthShell>
-  );
-}
-
-function AuthShell({ children }: { children: ReactNode }): ReactNode {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10 sm:px-6">
-      <div className="w-full max-w-md">
-        <div className="mb-6 flex items-center justify-center gap-2.5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-white">
-            <ion-icon name="storefront-outline" class="text-xl" aria-hidden="true" />
-          </span>
-          <span className="text-base font-semibold text-text">Ultimate POS</span>
-        </div>
-        {children}
-      </div>
-    </div>
   );
 }
 

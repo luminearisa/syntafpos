@@ -3,15 +3,16 @@ import tailwindcss from '@tailwindcss/vite'
 import { defineConfig, type Plugin } from 'vite'
 import fs from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
+const rootDir = path.dirname(fileURLToPath(import.meta.url))
 const ioniconsSvgDir = path.resolve(
-  __dirname,
+  rootDir,
   'node_modules/ionicons/dist/ionicons/svg',
 )
 const serveAt = '/ionicons/svg'
 
-// <ion-icon> fetches its SVGs by name relative to the document base, so the
-// catalogue has to live at a stable URL in both dev and the built bundle.
+// Keep Ionicons' SVG catalogue at a stable URL in development and in the build.
 function ioniconsAssets(): Plugin {
   return {
     name: 'ionicons-static-assets',
@@ -27,19 +28,18 @@ function ioniconsAssets(): Plugin {
       })
     },
     closeBundle: () => {
-      fs.cpSync(ioniconsSvgDir, path.resolve(__dirname, `dist${serveAt}`), {
+      fs.cpSync(ioniconsSvgDir, path.resolve(rootDir, `dist${serveAt}`), {
         recursive: true,
       })
     },
   }
 }
 
-// https://vite.dev/config/
 export default defineConfig({
   plugins: [ioniconsAssets(), react(), tailwindcss()],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@': path.resolve(rootDir, './src'),
     },
   },
   server: {

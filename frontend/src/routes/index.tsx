@@ -1,4 +1,5 @@
 import { type ReactNode, Suspense, lazy } from 'react';
+import { useEffect } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import type { RouteObject } from 'react-router-dom';
 import { useAuthStore } from '@/stores/auth-store';
@@ -81,10 +82,23 @@ function PageWrapper({ children }: { children: ReactNode }) {
 
 function RequireAuth(): ReactNode {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const user = useAuthStore((state) => state.user);
+  const isLoading = useAuthStore((state) => state.isLoading);
+  const fetchMe = useAuthStore((state) => state.fetchMe);
   const location = useLocation();
+
+  useEffect(() => {
+    if (isAuthenticated && !user && !isLoading) {
+      void fetchMe();
+    }
+  }, [isAuthenticated, user, isLoading, fetchMe]);
 
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location.pathname }} replace />;
+  }
+
+  if (!user) {
+    return <LoadingState label="Restoring your session..." className="min-h-[60vh]" />;
   }
 
   return <AppLayout><Outlet /></AppLayout>;

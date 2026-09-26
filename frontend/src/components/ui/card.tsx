@@ -9,7 +9,7 @@ export function Card({
   return (
     <div
       className={cn(
-        'rounded-lg border border-border bg-surface shadow-xs',
+        'rounded-xl border border-border/80 bg-surface shadow-xs',
         className
       )}
       {...props}
@@ -33,14 +33,14 @@ export function CardHeader({
   return (
     <div
       className={cn(
-        'flex items-center justify-between gap-3 border-b border-border px-4 py-3',
+        'flex flex-col gap-2 border-b border-border/80 px-4 py-3 sm:flex-row sm:items-center sm:justify-between',
         className
       )}
     >
       <div className="min-w-0">
-        <h3 className="truncate text-sm font-semibold text-text">{title}</h3>
+        <h3 className="truncate text-sm font-semibold tracking-[-0.01em] text-text">{title}</h3>
         {description && (
-          <p className="mt-0.5 truncate text-xs text-text-muted">
+          <p className="mt-0.5 text-xs leading-relaxed text-text-muted">
             {description}
           </p>
         )}
@@ -58,7 +58,7 @@ export function CardBody({
   className?: string;
   children: ReactNode;
 }) {
-  return <div className={cn('p-4', className)}>{children}</div>;
+  return <div className={cn('p-3.5 sm:p-4', className)}>{children}</div>;
 }
 
 export function CardFooter({
@@ -71,7 +71,7 @@ export function CardFooter({
   return (
     <div
       className={cn(
-        'flex items-center justify-end gap-2 border-t border-border px-4 py-3',
+        'flex flex-col items-stretch gap-2 border-t border-border/80 bg-surface-alt/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-end',
         className
       )}
     >

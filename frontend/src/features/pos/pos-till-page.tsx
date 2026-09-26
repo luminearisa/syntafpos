@@ -3,7 +3,7 @@ import { posApi } from '@/api/services';
 import type { Customer, PosCartItem, PosProduct } from '@/types';
 import { useAuthStore } from '@/stores/auth-store';
 import { apiErrorMessage } from '@/utils/api-error';
-import { formatMoneyString } from '@/utils/format';
+import { cn, formatMoneyString } from '@/utils/format';
 import { useToast } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -54,6 +54,7 @@ export default function PosTillPage() {
 
   const [term, setTerm] = useState('');
   const [dialog, setDialog] = useState<Dialog>(null);
+  const [mobileView, setMobileView] = useState<'products' | 'cart'>('products');
   // A counter rather than a boolean: pressing F2 twice must re-focus and
   // re-select, which a signal that never changes back would not do.
   const [focusTick, setFocusTick] = useState(0);
@@ -165,7 +166,7 @@ export default function PosTillPage() {
   const locked = !mayWork;
 
   return (
-    <div className="flex h-[calc(100vh-7.5rem)] min-h-[540px] flex-col gap-2">
+    <div className="flex h-[calc(100dvh-7.5rem)] min-h-[440px] flex-col gap-2 sm:min-h-[500px] lg:min-h-[540px]">
       <TillHeader
         term={term}
         onTerm={setTerm}
@@ -186,12 +187,45 @@ export default function PosTillPage() {
         />
       )}
 
+      <div className="grid grid-cols-2 gap-1 rounded-xl border border-border/80 bg-surface-alt p-1 lg:hidden">
+        {(['products', 'cart'] as const).map((view) => (
+          <button
+            key={view}
+            type="button"
+            onClick={() => setMobileView(view)}
+            className={cn(
+              'flex h-9 items-center justify-center gap-2 rounded-lg text-xs font-semibold transition-colors',
+              mobileView === view
+                ? 'bg-white text-primary shadow-xs'
+                : 'text-text-muted hover:text-text'
+            )}
+            aria-pressed={mobileView === view}
+          >
+            <ion-icon
+              name={view === 'products' ? 'cube-outline' : 'cart-outline'}
+              aria-hidden="true"
+            />
+            {view === 'products' ? 'Products' : `Cart (${cart.items?.length ?? 0})`}
+          </button>
+        ))}
+      </div>
+
       <div className="flex min-h-0 flex-1 flex-col gap-2 lg:flex-row">
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-surface">
+        <div
+          className={cn(
+            'flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border/80 bg-surface shadow-xs',
+            mobileView !== 'products' && 'hidden lg:flex'
+          )}
+        >
           <ProductGrid term={term} onAdd={addFromGrid} disabled={locked} />
         </div>
 
-        <div className="flex min-h-0 w-full flex-col overflow-hidden rounded-lg border border-border lg:w-[380px] xl:w-[420px]">
+        <div
+          className={cn(
+            'flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-xl border border-border/80 bg-surface shadow-xs lg:w-[380px] lg:flex-none xl:w-[420px]',
+            mobileView !== 'cart' && 'hidden lg:flex'
+          )}
+        >
           <CartPanel
             cart={cart}
             busy={till.busy}
@@ -348,7 +382,7 @@ function TillFooter({
   const ready = items > 0;
 
   return (
-    <footer className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 shadow-sm">
+    <footer className="flex flex-wrap items-center gap-1.5 rounded-xl border border-border/80 bg-white px-2 py-2 shadow-sm sm:flex-nowrap sm:gap-2 sm:px-3">
       <CustomerFooterButton
         cart={cart}
         onOpen={onCustomer}
@@ -358,7 +392,7 @@ function TillFooter({
 
       <DiscountFooterButton cart={cart} onOpen={onDiscount} />
 
-      <div className="flex flex-col items-end leading-tight sm:items-start">
+      <div className="hidden flex-col items-end leading-tight sm:flex sm:items-start">
         <span className="text-[10px] tracking-wide text-text-subtle uppercase">Tax</span>
         <span className="font-mono text-sm text-text">{formatMoneyString(cart.tax_total)}</span>
       </div>
@@ -376,23 +410,25 @@ function TillFooter({
         <>
           <Button
             variant="outline"
-            size="lg"
+            size="sm"
             icon="pause-circle-outline"
             onClick={onHold}
             disabled={busy || !ready}
+            aria-label="Hold cart"
             title="Park this cart and free the register (F8)"
           >
-            Hold
+            <span className="hidden sm:inline">Hold</span>
           </Button>
           <Button
             variant="secondary"
-            size="lg"
+            size="sm"
             icon="play-circle-outline"
             onClick={onRecall}
             disabled={busy}
+            aria-label="Recall held cart"
             title="Bring a parked cart back (F9)"
           >
-            Recall
+            <span className="hidden sm:inline">Recall</span>
           </Button>
         </>
       )}
@@ -401,8 +437,9 @@ function TillFooter({
           sale, its payments, its invoice number and its stock movement. */}
       <Button
         variant="primary"
-        size="lg"
+        size="md"
         icon="checkmark-circle-outline"
+        className="min-w-[118px]"
         onClick={onCheckout}
         disabled={!mayWork || !ready}
         title="Take payment and issue the invoice (F10)"

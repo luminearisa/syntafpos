@@ -102,7 +102,7 @@ export function Modal({
         }}
       >
         <div
-          className="absolute inset-0 bg-slate-900/50 backdrop-blur-[1px]"
+          className="absolute inset-0 bg-slate-950/55 backdrop-blur-sm"
           onClick={() => closeOnBackdrop && onClose()}
           aria-hidden="true"
         />
@@ -111,7 +111,7 @@ export function Modal({
           role="dialog"
           aria-modal="true"
           className={cn(
-            'relative flex max-h-[90vh] w-full flex-col overflow-hidden rounded-lg bg-surface shadow-lg',
+            'relative flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-hidden rounded-2xl border border-border/70 bg-surface shadow-lg',
             sizeClasses[size]
           )}
         >
@@ -275,7 +275,7 @@ export function Drawer({
     <ModalContext.Provider value={{ open, close: onClose }}>
       <div className="fixed inset-0 z-50">
         <div
-          className="absolute inset-0 bg-slate-900/50"
+          className="absolute inset-0 bg-slate-950/55 backdrop-blur-[2px]"
           onClick={onClose}
           aria-hidden="true"
         />

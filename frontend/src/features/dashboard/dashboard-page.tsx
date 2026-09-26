@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 
+import { useAuthStore } from '@/stores/auth-store';
 import { dashboardApi } from '@/api/services';
 import { Card, CardBody, CardHeader } from '@/components/ui/card';
-import { EmptyState, ErrorState, PageHeader } from '@/components/ui/state';
+import { EmptyState, ErrorState } from '@/components/ui/state';
 import { listQueryKeys } from '@/lib/query-client';
 import type { DashboardData } from '@/types';
 import { DashboardSkeleton, DashboardWidgetCard } from './dashboard-widget';
@@ -192,6 +193,7 @@ function ChartsCard({
 
 export default function DashboardPage() {
   const navigate = useNavigate();
+  const user = useAuthStore((state) => state.user);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: listQueryKeys.dashboard,
@@ -216,14 +218,46 @@ export default function DashboardPage() {
   const { context, widgets, charts, counts } = data.data;
   const company = context.company;
 
+  const firstName = user?.name.trim().split(/\s+/)[0] ?? 'there';
+  const today = new Intl.DateTimeFormat('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  }).format(new Date());
+
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader
-        title="Dashboard"
-        description={
-          company ? `${company.name} (${company.code})` : 'No company selected'
-        }
-      />
+    <div className="flex flex-col gap-5 sm:gap-6">
+      <section className="relative isolate overflow-hidden rounded-2xl bg-[linear-gradient(120deg,#14243d_0%,#1e3760_58%,#3158c9_100%)] px-5 py-5 text-white shadow-md sm:px-7 sm:py-6">
+        <div className="pointer-events-none absolute -right-12 -top-20 h-64 w-64 rounded-full border border-white/10" />
+        <div className="pointer-events-none absolute -right-2 -top-9 h-44 w-44 rounded-full bg-white/[0.06] blur-2xl" />
+        <div className="relative flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0">
+            <div className="mb-2 flex items-center gap-2">
+              <span className="inline-flex h-6 items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-2.5 text-[10px] font-bold tracking-[0.12em] text-blue-100 uppercase">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
+                Business overview
+              </span>
+            </div>
+            <h1 className="text-2xl font-bold tracking-[-0.04em] sm:text-[30px]">
+              Welcome back, {firstName}
+            </h1>
+            <p className="mt-1.5 max-w-2xl text-[13px] leading-relaxed text-blue-100/80">
+              {company
+                ? `Here is a clear view of ${company.name} and your retail operations.`
+                : 'Choose a company to see the latest overview of your retail operations.'}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2.5 rounded-xl border border-white/10 bg-white/[0.08] px-3 py-2.5 text-xs text-blue-50">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10">
+              <ion-icon name="calendar-outline" class="text-lg" aria-hidden="true" />
+            </span>
+            <span>
+              <span className="block text-[10px] font-medium text-blue-100/70">TODAY</span>
+              <span className="block font-semibold">{today}</span>
+            </span>
+          </div>
+        </div>
+      </section>
 
       <QuickActions />
 

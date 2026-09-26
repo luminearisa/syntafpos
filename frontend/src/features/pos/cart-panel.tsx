@@ -42,7 +42,7 @@ export function CartPanel({
 
   return (
     <section
-      className="flex min-h-0 w-full flex-col border-l border-border bg-surface"
+      className="flex h-full min-h-0 w-full flex-1 flex-col bg-surface"
       aria-label="Cart"
     >
       <header className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
